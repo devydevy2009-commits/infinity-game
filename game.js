@@ -22,46 +22,27 @@ resize();
 class Player {
   constructor() {
     this.x = centerX;
-    this.y = centerY;
+    this.y = height * 0.8;
     this.angle = -Math.PI / 2;
     this.size = 15;
-    this.speed = 0;
-    this.maxSpeed = 6;
-    this.friction = 0.96;
-    this.rotationSpeed = 0.08;
   }
 
-  update(input) {
-    if (input.left) this.angle -= this.rotationSpeed;
-    if (input.right) this.angle += this.rotationSpeed;
-    
-    if (input.up) {
-      this.speed = this.maxSpeed;
-    } else {
-      this.speed *= this.friction;
+  update(targetX, targetY) {
+    if (targetX !== undefined && targetY !== undefined) {
+      this.x = targetX;
+      this.y = targetY;
     }
 
-    if (input.pointerAngle !== undefined) {
-      const targetAngle = input.pointerAngle;
-      let diff = targetAngle - this.angle;
-      while (diff > Math.PI) diff -= Math.PI * 2;
-      while (diff < -Math.PI) diff += Math.PI * 2;
-      this.angle += diff * 0.15;
-    }
-
-    this.x += Math.cos(this.angle) * this.speed;
-    this.y += Math.sin(this.angle) * this.speed;
-
-    if (this.x < 0) this.x = width;
-    if (this.x > width) this.x = 0;
-    if (this.y < 0) this.y = height;
-    if (this.y > height) this.y = 0;
+    if (this.x < this.size) this.x = this.size;
+    if (this.x > width - this.size) this.x = width - this.size;
+    if (this.y < this.size) this.y = this.size;
+    if (this.y > height - this.size) this.y = height - this.size;
   }
 
   draw() {
     ctx.save();
     ctx.translate(this.x, this.y);
-    ctx.rotate(this.angle + Math.PI / 2);
+    ctx.rotate(this.angle);
     ctx.beginPath();
     ctx.moveTo(0, -this.size);
     ctx.lineTo(-this.size / 1.5, this.size);
@@ -87,7 +68,7 @@ class Enemy {
     else { this.x = -20; this.y = Math.random() * height; }
 
     const angle = Math.atan2(centerY - this.y, centerX - this.x);
-    const speed = 0.8 + Math.random() * 1.2;
+    const speed = 1 + Math.random() * 1.5;
     this.vx = Math.cos(angle) * speed;
     this.vy = Math.sin(angle) * speed;
     this.size = 12 + Math.random() * 10;
@@ -124,14 +105,13 @@ class Enemy {
 }
 
 class Bullet {
-  constructor(x, y, angle) {
+  constructor(x, y) {
     this.x = x;
     this.y = y;
-    const bulletSpeed = 10;
-    this.vx = Math.cos(angle) * bulletSpeed;
-    this.vy = Math.sin(angle) * bulletSpeed;
-    this.size = 3;
-    this.life = 100;
+    this.vx = 0;
+    this.vy = -12;
+    this.size = 4;
+    this.life = 80;
   }
 
   update() {
@@ -182,90 +162,63 @@ class Particle {
   }
 }
 
-const input = { up: false, left: false, right: false, firing: false, pointerAngle: undefined };
+let playerTargetX = undefined;
+let playerTargetY = undefined;
 let lastFireTime = 0;
-const fireCooldown = 150;
-
-let pencilDoubleTapTimer = null;
-let pencilDoubleTapCount = 0;
+const fireCooldown = 120;
 
 function handleTouchStart(e) {
   e.preventDefault();
   for (const touch of e.touches) {
-    const x = touch.clientX;
-    const y = touch.clientY;
-    
-    if (y > height * 0.5) {
-      input.up = true;
-      
-      if (x < width * 0.4) input.left = true;
-      else if (x > width * 0.6) input.right = true;
-    } else {
-      input.firing = true;
-    }
+    playerTargetX = touch.clientX;
+    playerTargetY = touch.clientY;
+  }
+}
+
+function handleTouchMove(e) {
+  e.preventDefault();
+  for (const touch of e.touches) {
+    playerTargetX = touch.clientX;
+    playerTargetY = touch.clientY;
   }
 }
 
 function handleTouchEnd(e) {
   e.preventDefault();
   const touches = e.touches;
-  
-  input.left = false;
-  input.right = false;
-  input.up = false;
-  
-  for (const touch of touches) {
-    const x = touch.clientX;
-    const y = touch.clientY;
-    
-    if (y > height * 0.5) {
-      input.up = true;
-      
-      if (x < width * 0.4) input.left = true;
-      else if (x > width * 0.6) input.right = true;
-    } else {
-      input.firing = true;
-    }
+  if (touches.length > 0) {
+    playerTargetX = touches[0].clientX;
+    playerTargetY = touches[0].clientY;
+  } else {
+    playerTargetX = undefined;
+    playerTargetY = undefined;
   }
 }
 
 canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
+canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
 canvas.addEventListener('touchend', handleTouchEnd, { passive: false });
 canvas.addEventListener('touchcancel', handleTouchEnd, { passive: false });
 
 function handlePointerMove(e) {
-  if (e.pointerType === 'pen') {
+  if (e.pointerType === 'pen' || e.pointerType === 'touch') {
     e.preventDefault();
-    const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    const angle = Math.atan2(y - player.y, x - player.x);
-    input.pointerAngle = angle;
+    playerTargetX = e.clientX;
+    playerTargetY = e.clientY;
   }
 }
 
 function handlePointerDown(e) {
-  if (e.pointerType === 'pen') {
+  if (e.pointerType === 'pen' || e.pointerType === 'touch') {
     e.preventDefault();
-    pencilDoubleTapCount++;
-    if (pencilDoubleTapTimer) {
-      clearTimeout(pencilDoubleTapTimer);
-    }
-    if (pencilDoubleTapCount >= 2) {
-      input.firing = true;
-      pencilDoubleTapCount = 0;
-    } else {
-      pencilDoubleTapTimer = setTimeout(() => {
-        pencilDoubleTapCount = 0;
-      }, 300);
-    }
+    playerTargetX = e.clientX;
+    playerTargetY = e.clientY;
   }
 }
 
 function handlePointerUp(e) {
-  if (e.pointerType === 'pen') {
+  if (e.pointerType === 'pen' || e.pointerType === 'touch') {
     e.preventDefault();
-    input.firing = false;
   }
 }
 
@@ -275,7 +228,7 @@ canvas.addEventListener('pointerup', handlePointerUp, { passive: false });
 canvas.addEventListener('pointercancel', handlePointerUp, { passive: false });
 
 function spawnEnemy() {
-  if (enemies.length < 8 && Math.random() < 0.03) {
+  if (enemies.length < 10 && Math.random() < 0.04) {
     enemies.push(new Enemy());
   }
 }
@@ -327,11 +280,11 @@ function createExplosion(x, y, color, count) {
 }
 
 function update(deltaTime) {
-  player.update(input);
+  player.update(playerTargetX, playerTargetY);
 
   const now = Date.now();
-  if (input.firing && now - lastFireTime > fireCooldown) {
-    bullets.push(new Bullet(player.x, player.y, player.angle));
+  if (now - lastFireTime > fireCooldown) {
+    bullets.push(new Bullet(player.x, player.y - player.size));
     lastFireTime = now;
   }
 
@@ -377,6 +330,8 @@ function startGame() {
   lives = 3;
   scoreEl.textContent = `Score: ${score}`;
   livesEl.textContent = `Lives: ${lives}`;
+  playerTargetX = undefined;
+  playerTargetY = undefined;
   gameRunning = true;
   lastTime = performance.now();
   startBtn.style.display = 'none';

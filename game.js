@@ -2,10 +2,21 @@ const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 const scoreEl = document.getElementById('score');
 const livesEl = document.getElementById('lives');
+const timerEl = document.getElementById('timer');
 const startBtn = document.getElementById('startBtn');
+const settingsBtn = document.getElementById('settingsBtn');
+const settingsMenu = document.getElementById('settingsMenu');
+const newGameBtn = document.getElementById('newGameBtn');
+const pauseBtn = document.getElementById('pauseBtn');
+const resumeBtn = document.getElementById('resumeBtn');
+const restartBtn = document.getElementById('restartBtn');
+const closeSettingsBtn = document.getElementById('closeSettingsBtn');
+const pauseOverlay = document.getElementById('pauseOverlay');
+const resumeFromPauseBtn = document.getElementById('resumeFromPauseBtn');
+const restartFromPauseBtn = document.getElementById('restartFromPauseBtn');
 
 let width, height, centerX, centerY;
-let player, enemies, bullets, particles, score, lives, gameRunning, lastTime;
+let player, enemies, bullets, particles, score, lives, gameRunning, paused, lastTime, startTime, timerInterval;
 
 function resize() {
   width = window.innerWidth;
@@ -279,7 +290,16 @@ function createExplosion(x, y, color, count) {
   }
 }
 
+function updateTimer() {
+  const elapsed = Math.floor((Date.now() - startTime) / 1000);
+  const minutes = Math.floor(elapsed / 60);
+  const seconds = elapsed % 60;
+  timerEl.textContent = `Time: ${minutes}:${seconds.toString().padStart(2, '0')}`;
+}
+
 function update(deltaTime) {
+  if (paused) return;
+
   player.update(playerTargetX, playerTargetY);
 
   const now = Date.now();
@@ -333,16 +353,107 @@ function startGame() {
   playerTargetX = undefined;
   playerTargetY = undefined;
   gameRunning = true;
+  paused = false;
+  startTime = Date.now();
   lastTime = performance.now();
+  lastFireTime = 0;
+  
+  if (timerInterval) clearInterval(timerInterval);
+  timerInterval = setInterval(updateTimer, 1000);
+  updateTimer();
+  
   startBtn.style.display = 'none';
+  settingsMenu.classList.add('hidden');
+  pauseOverlay.classList.add('hidden');
+  settingsBtn.style.display = 'block';
+  
   requestAnimationFrame(gameLoop);
+}
+
+function pauseGame() {
+  paused = true;
+  pauseOverlay.classList.remove('hidden');
+  settingsMenu.classList.add('hidden');
+}
+
+function resumeGame() {
+  paused = false;
+  pauseOverlay.classList.add('hidden');
+  lastTime = performance.now();
+  requestAnimationFrame(gameLoop);
+}
+
+function restartGame() {
+  if (timerInterval) clearInterval(timerInterval);
+  startGame();
 }
 
 function gameOver() {
   gameRunning = false;
+  if (timerInterval) clearInterval(timerInterval);
   startBtn.textContent = 'Restart';
   startBtn.style.display = 'block';
+  settingsBtn.style.display = 'none';
 }
+
+settingsBtn.addEventListener('click', (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+  settingsMenu.classList.remove('hidden');
+  
+  if (paused) {
+    pauseBtn.classList.add('hidden');
+    resumeBtn.classList.remove('hidden');
+  } else {
+    pauseBtn.classList.remove('hidden');
+    resumeBtn.classList.add('hidden');
+  }
+});
+
+newGameBtn.addEventListener('click', (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+  if (timerInterval) clearInterval(timerInterval);
+  startGame();
+});
+
+pauseBtn.addEventListener('click', (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+  pauseGame();
+});
+
+resumeBtn.addEventListener('click', (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+  resumeGame();
+  settingsMenu.classList.add('hidden');
+});
+
+restartBtn.addEventListener('click', (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+  restartGame();
+  settingsMenu.classList.add('hidden');
+});
+
+closeSettingsBtn.addEventListener('click', (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+  settingsMenu.classList.add('hidden');
+});
+
+resumeFromPauseBtn.addEventListener('click', (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+  resumeGame();
+});
+
+restartFromPauseBtn.addEventListener('click', (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+  restartGame();
+});
 
 startBtn.addEventListener('click', startGame);
 startBtn.addEventListener('touchstart', (e) => {

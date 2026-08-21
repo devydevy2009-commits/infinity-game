@@ -1,6 +1,13 @@
-// Infinity gameplay enhancements: rarer/faster powerups, formations and hunter enemies.
+// Infinity gameplay enhancements: visible powerups, triangular squadrons and hunter reinforcements.
 (() => {
   const OriginalEnemy = Enemy;
+
+  // Slightly nerf the power curve so collecting powerups is rewarding without becoming overwhelming.
+  powerTable.forEach(p => {
+    p.cooldown *= 1.10;
+    p.speed *= 0.90;
+    p.spread *= 0.88;
+  });
 
   class HunterBullet {
     constructor(x, y, vx, vy) {
@@ -12,7 +19,7 @@
       ctx.save();
       ctx.fillStyle = '#ff4fd8';
       ctx.shadowColor = '#ff4fd8';
-      ctx.shadowBlur = S(7);
+      ctx.shadowBlur = S(8);
       ctx.beginPath(); ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2); ctx.fill();
       ctx.restore();
     }
@@ -24,7 +31,7 @@
       super('hunter');
       this.size = S(16);
       this.hp = 2 + Math.floor(tier() / 4);
-      this.lastShot = Date.now() + 900;
+      this.lastShot = Date.now() + 850;
       this.orbit = Math.random() * Math.PI * 2;
     }
     update(f) {
@@ -72,40 +79,66 @@
     }
   }
 
-  buildWave = function buildWaveEnhanced() {
+  function formationKind() {
     const t = tier();
-    const count = 5 + Math.min(t, 9);
-    const cols = Math.min(count, 5);
-    const rows = Math.ceil(count / cols);
-    const startX = width / 2;
-    const startY = -S(42);
-    const spacingX = S(52);
-    const spacingY = S(46);
-    const kinds = ['basic', 'basic', 'shooter'];
-    if (t >= 3) kinds.push('armored');
-    if (t >= 5) kinds.push('ghost');
-    if (t >= 2) kinds.push('hunter');
+    const r = Math.random();
+    if (t >= 8 && r < 0.18) return 'hunter';
+    if (t >= 5 && r < 0.48) return 'armored';
+    if (t >= 3 && r < 0.72) return 'shooter';
+    return 'basic';
+  }
+
+  // A clearly readable 1-2-3 triangular squadron, all made of the same enemy type.
+  function makeTriangleFormation() {
+    const t = tier();
+    const kind = formationKind();
+    const rows = 3;
+    const spacingX = S(48);
+    const spacingY = S(42);
+    const centerX = width / 2 + (Math.random() - 0.5) * width * 0.32;
+    const startY = -S(34);
     const queue = [];
-    for (let r = 0; r < rows; r++) {
-      for (let c = 0; c < cols; c++) {
-        if (queue.length >= count) break;
-        const center = (cols - 1) / 2;
-        const x = startX + (c - center) * spacingX + (r % 2 ? spacingX * 0.28 : 0);
-        const kind = kinds[(r * cols + c + t) % kinds.length];
-        queue.push({ x, y: startY - r * spacingY, kind });
+    for (let row = 0; row < rows; row++) {
+      const count = row + 1;
+      for (let col = 0; col < count; col++) {
+        const x = centerX + (col - (count - 1) / 2) * spacingX;
+        const y = startY - (rows - 1 - row) * spacingY;
+        queue.push({ x, y, kind, formationKind: kind, formationSpeed: 1 + t * 0.08 });
       }
     }
     return queue;
-  };
+  }
 
-  spawnFromWave = function spawnFromWaveEnhanced(entry) {
+  function spawnFormation(force = false) {
+    if (!force && enemies.length > 7 + tier() * 2) return false;
+    const entries = makeTriangleFormation();
+    entries.forEach(entry => {
+      const e = entry.kind === 'hunter' ? new HunterEnemy() : new Enemy(entry.kind);
+      e.x = entry.x; e.y = entry.y;
+      e.formation = true;
+      e.formationKind = entry.formationKind;
+      const angle = Math.atan2(height * 0.62 - e.y, cx - e.x);
+      const speed = S((1.35 + Math.random() * 0.12) * entry.formationSpeed);
+      e.vx = Math.cos(angle) * speed;
+      e.vy = Math.sin(angle) * speed;
+      enemies.push(e);
+    });
+    return true;
+  }
+
+  function spawnFromWave(entry) {
     const e = entry.kind === 'hunter' ? new HunterEnemy() : new Enemy(entry.kind);
     e.x = entry.x; e.y = entry.y;
-    const angle = Math.atan2(height * 0.58 - e.y, cx - e.x);
-    const mult = 1 + tier() * 0.18;
-    e.vx = Math.cos(angle) * S((1.22 + Math.random() * 0.4) * mult);
-    e.vy = Math.sin(angle) * S((1.22 + Math.random() * 0.4) * mult);
+    const angle = Math.atan2(height * 0.62 - e.y, cx - e.x);
+    const speed = S((1.35 + Math.random() * 0.18) * (1 + tier() * 0.10));
+    e.vx = Math.cos(angle) * speed;
+    e.vy = Math.sin(angle) * speed;
     enemies.push(e);
+  }
+
+  // Kept as a fallback for the original game's wave system.
+  buildWave = function buildWaveEnhanced() {
+    return makeTriangleFormation();
   };
 
   chooseEnemy = function chooseEnemyEnhanced() {
@@ -117,46 +150,80 @@
     return 'basic';
   };
 
+  function spawnPowerupEvent() {
+    const p = new Powerup();
+    p._enhanced = true;
+    p.size = S(25);
+    p.vy = S(1.15 + Math.min(tier(), 12) * 0.035);
+    p.vx = (Math.random() < 0.5 ? -1 : 1) * S(0.35 + Math.random() * 0.35);
+    p.phase = Math.random() * Math.PI * 2;
+    p.update = function(f) {
+      this.phase += 0.045 * f;
+      this.x += this.vx * f;
+      this.y += this.vy * f;
+      this.x += Math.sin(this.phase) * S(0.25) * f;
+      if (this.x < this.size || this.x > width - this.size) this.vx *= -1;
+      this.rot += 0.035 * f;
+    };
+    p.draw = function() {
+      const pulse = 1 + Math.sin(this.phase * 1.5) * 0.10;
+      ctx.save();
+      ctx.translate(this.x, this.y);
+      ctx.rotate(this.rot);
+      ctx.scale(pulse, pulse);
+      ctx.shadowColor = '#249bff';
+      ctx.shadowBlur = S(16);
+      ctx.strokeStyle = '#69c4ff';
+      ctx.fillStyle = 'rgba(36,155,255,0.18)';
+      ctx.lineWidth = S(3.5);
+      ctx.fillRect(-this.size / 2, -this.size / 2, this.size, this.size);
+      ctx.strokeRect(-this.size / 2, -this.size / 2, this.size, this.size);
+      ctx.beginPath();
+      ctx.moveTo(-this.size * 0.25, 0); ctx.lineTo(this.size * 0.25, 0);
+      ctx.moveTo(0, -this.size * 0.25); ctx.lineTo(0, this.size * 0.25);
+      ctx.stroke();
+      ctx.restore();
+    };
+    p.b = function() { return { x: this.x, y: this.y, r: this.size * 0.70 }; };
+    powerups.push(p);
+
+    // The reward creates a deliberate risk window: the screen gets busier and nastier.
+    const reinforcements = 3 + Math.min(2, Math.floor(tier() / 3));
+    for (let i = 0; i < reinforcements; i++) {
+      const kind = i === 0 && tier() >= 2 ? 'hunter' : chooseEnemy();
+      enemies.push(kind === 'hunter' ? new HunterEnemy() : new Enemy(kind));
+    }
+    spawnFormation(true);
+    if (tier() >= 4) spawnFormation(true);
+  }
+
   spawn = function spawnEnhanced() {
     const t = tier();
     const cap = 8 + t * 3;
     const now = Date.now();
-    if (!inWave && now - waveTimer > 18000) {
+
+    // Formations are guaranteed in both Normal and Hard Mode and arrive often enough to see.
+    if (!inWave && now - waveTimer > 10500) {
       waveTimer = now;
       inWave = true;
-      waveQueue = buildWave();
+      spawnFormation(false);
+      waveQueue = [];
       waveSpawnIndex = 0;
       waveSpawnTimer = now;
     }
-    if (inWave) {
-      if (now - waveSpawnTimer > 280 && waveSpawnIndex < waveQueue.length) {
-        spawnFromWave(waveQueue[waveSpawnIndex]);
-        waveSpawnIndex++;
-        waveSpawnTimer = now;
-      }
-      if (waveSpawnIndex >= waveQueue.length) inWave = false;
+    if (inWave && enemies.length < cap + 6) {
+      inWave = false;
     }
+
     if (enemies.length < cap && Math.random() < 0.032 + t * 0.006) {
       const kind = chooseEnemy();
       enemies.push(kind === 'hunter' ? new HunterEnemy() : new Enemy(kind));
     }
-    const powerupChance = 0.00045 + Math.min(t, 10) * 0.000025;
-    if (Math.random() < powerupChance) {
-      const p = new Powerup();
-      p._enhanced = true;
-      p.vy *= 1.75;
-      p.vx = (Math.random() < 0.5 ? -1 : 1) * S(0.9 + Math.random() * 0.7);
-      p.baseX = p.x;
-      p.phase = Math.random() * Math.PI * 2;
-      p.update = function(f) {
-        this.phase += 0.065 * f;
-        this.x += this.vx * f;
-        this.y += this.vy * f;
-        this.x += Math.sin(this.phase) * S(0.55) * f;
-        this.rot += 0.065 * f;
-      };
-      p.b = function() { return { x: this.x, y: this.y, r: this.size * 0.54 }; };
-      powerups.push(p);
+
+    // More visible and more frequent, but slower and less powerful.
+    const powerupChance = 0.00095 + Math.min(t, 10) * 0.000035;
+    if (Math.random() < powerupChance && powerups.length === 0) {
+      spawnPowerupEvent();
     }
   };
 })();

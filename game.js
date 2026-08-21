@@ -26,16 +26,17 @@ class Player {
     this.angle = -Math.PI / 2;
     this.size = 15;
     this.speed = 0;
-    this.maxSpeed = 4;
-    this.friction = 0.98;
+    this.maxSpeed = 6;
+    this.friction = 0.96;
     this.rotationSpeed = 0.08;
   }
 
   update(input) {
     if (input.left) this.angle -= this.rotationSpeed;
     if (input.right) this.angle += this.rotationSpeed;
+    
     if (input.up) {
-      this.speed = Math.min(this.speed + 0.2, this.maxSpeed);
+      this.speed = this.maxSpeed;
     } else {
       this.speed *= this.friction;
     }
@@ -126,8 +127,9 @@ class Bullet {
   constructor(x, y, angle) {
     this.x = x;
     this.y = y;
-    this.vx = Math.cos(angle) * 8;
-    this.vy = Math.sin(angle) * 8;
+    const bulletSpeed = 10;
+    this.vx = Math.cos(angle) * bulletSpeed;
+    this.vy = Math.sin(angle) * bulletSpeed;
     this.size = 3;
     this.life = 100;
   }
@@ -192,10 +194,12 @@ function handleTouchStart(e) {
   for (const touch of e.touches) {
     const x = touch.clientX;
     const y = touch.clientY;
-    if (y > height * 0.6) {
+    
+    if (y > height * 0.5) {
+      input.up = true;
+      
       if (x < width * 0.4) input.left = true;
       else if (x > width * 0.6) input.right = true;
-      else input.up = true;
     } else {
       input.firing = true;
     }
@@ -205,16 +209,20 @@ function handleTouchStart(e) {
 function handleTouchEnd(e) {
   e.preventDefault();
   const touches = e.touches;
+  
   input.left = false;
   input.right = false;
   input.up = false;
+  
   for (const touch of touches) {
     const x = touch.clientX;
     const y = touch.clientY;
-    if (y > height * 0.6) {
+    
+    if (y > height * 0.5) {
+      input.up = true;
+      
       if (x < width * 0.4) input.left = true;
       else if (x > width * 0.6) input.right = true;
-      else input.up = true;
     } else {
       input.firing = true;
     }

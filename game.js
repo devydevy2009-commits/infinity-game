@@ -40,6 +40,14 @@ class Player {
       this.speed *= this.friction;
     }
 
+    if (input.pointerAngle !== undefined) {
+      const targetAngle = input.pointerAngle;
+      let diff = targetAngle - this.angle;
+      while (diff > Math.PI) diff -= Math.PI * 2;
+      while (diff < -Math.PI) diff += Math.PI * 2;
+      this.angle += diff * 0.15;
+    }
+
     this.x += Math.cos(this.angle) * this.speed;
     this.y += Math.sin(this.angle) * this.speed;
 
@@ -172,9 +180,12 @@ class Particle {
   }
 }
 
-const input = { up: false, left: false, right: false, firing: false };
+const input = { up: false, left: false, right: false, firing: false, pointerAngle: undefined };
 let lastFireTime = 0;
 const fireCooldown = 150;
+
+let pencilDoubleTapTimer = null;
+let pencilDoubleTapCount = 0;
 
 function handleTouchStart(e) {
   e.preventDefault();
@@ -213,6 +224,47 @@ function handleTouchEnd(e) {
 canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
 canvas.addEventListener('touchend', handleTouchEnd, { passive: false });
 canvas.addEventListener('touchcancel', handleTouchEnd, { passive: false });
+
+function handlePointerMove(e) {
+  if (e.pointerType === 'pen') {
+    e.preventDefault();
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const angle = Math.atan2(y - player.y, x - player.x);
+    input.pointerAngle = angle;
+  }
+}
+
+function handlePointerDown(e) {
+  if (e.pointerType === 'pen') {
+    e.preventDefault();
+    pencilDoubleTapCount++;
+    if (pencilDoubleTapTimer) {
+      clearTimeout(pencilDoubleTapTimer);
+    }
+    if (pencilDoubleTapCount >= 2) {
+      input.firing = true;
+      pencilDoubleTapCount = 0;
+    } else {
+      pencilDoubleTapTimer = setTimeout(() => {
+        pencilDoubleTapCount = 0;
+      }, 300);
+    }
+  }
+}
+
+function handlePointerUp(e) {
+  if (e.pointerType === 'pen') {
+    e.preventDefault();
+    input.firing = false;
+  }
+}
+
+canvas.addEventListener('pointermove', handlePointerMove, { passive: false });
+canvas.addEventListener('pointerdown', handlePointerDown, { passive: false });
+canvas.addEventListener('pointerup', handlePointerUp, { passive: false });
+canvas.addEventListener('pointercancel', handlePointerUp, { passive: false });
 
 function spawnEnemy() {
   if (enemies.length < 8 && Math.random() < 0.03) {

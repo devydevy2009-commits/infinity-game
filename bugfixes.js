@@ -14,7 +14,6 @@
   const originalGameOver = gameOver;
   const originalUpdate = update;
 
-  // Fix the pause timer: paused time must not count toward the run.
   function secsFixed() {
     if (!startTime) return 0;
     let elapsed = Date.now() - startTime - pausedTotal;
@@ -29,11 +28,12 @@
     pausedTotal = 0;
     finalElapsed = 0;
     lastSimulationAt = 0;
+    if (player) player.angle = 0;
     originalResetGame();
+    if (player) player.angle = 0;
   }
   resetGame = resetGameFixed;
 
-  // Preserve elapsed time when the game ends so saved scores retain their time.
   function gameOverFixed() {
     finalElapsed = secsFixed();
     updateTimer();
@@ -41,7 +41,6 @@
   }
   gameOver = gameOverFixed;
 
-  // Fix bullets: the original constructor turned vy=0 side shots into downward shots.
   Bullet = class BulletFixed {
     constructor(x, y, vx = 0, vy = -1, damage = 1) {
       this.x = x;
@@ -66,14 +65,12 @@
     b() { return { x: this.x, y: this.y, r: this.r }; }
   };
 
-  // Restarting while already running must not create a second animation loop.
   function startGameFixed() {
     if (!running) {
       finalElapsed = 0;
       originalStartGame();
       return;
     }
-
     const needsNewFrameLoop = paused;
     resetGameFixed();
     running = true;
@@ -113,13 +110,10 @@
   }
   resumeGame = resumeGameFixed;
 
-  // Cap simulation updates at 60 Hz so 90/120/144 Hz displays do not make the game faster.
-  // Rendering can still happen at the display refresh rate.
   function updateFixed() {
     const now = performance.now();
     if (lastSimulationAt && now - lastSimulationAt < 1000 / 60) return;
     lastSimulationAt = now;
-
     const before = score;
     originalUpdate();
     if (hardMode && score > before) {
@@ -163,11 +157,7 @@
     const elapsed = finalElapsed || secsFixed();
     all.push({ name, score: Math.max(0, Math.floor(Number(score) || 0)), time: elapsed, date: Date.now() });
     all.sort((a, b) => b.score - a.score || b.time - a.time);
-    try {
-      localStorage.setItem('infinityScores', JSON.stringify(all.slice(0, 10)));
-    } catch {
-      // Private browsing/storage-disabled environments should not crash the game.
-    }
+    try { localStorage.setItem('infinityScores', JSON.stringify(all.slice(0, 10))); } catch {}
     saveScoreBox.classList.add('hidden');
     renderScoresFixed();
   }
@@ -185,13 +175,8 @@
 
   async function toggleGyro() {
     if (!hardMode && typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-      try {
-        await DeviceOrientationEvent.requestPermission();
-      } catch {
-        // Hard mode still works without gyro; only motion control is unavailable.
-      }
+      try { await DeviceOrientationEvent.requestPermission(); } catch {}
     }
-
     hardMode = !hardMode;
     if (hardMode && !gyroListenerAttached && 'DeviceOrientationEvent' in window) {
       window.addEventListener('deviceorientation', onOrientation, { passive: true });
@@ -205,21 +190,38 @@
     showHardModeNotice();
   }
 
+  // In Hard Mode the gyroscope only rotates the ship's nose.
+  // Position remains controlled by the normal touch/mouse target.
   function onOrientation(e) {
     if (!gyroEnabled || !running || paused || !player) return;
     const gamma = clamp(Number(e.gamma) || 0, -45, 45);
-    const beta = clamp(Number(e.beta) || 45, 0, 90);
-    targetX = cx + (gamma / 45) * Math.max(0, width / 2 - player.size);
-    targetY = height * 0.55 + ((beta - 45) / 45) * Math.max(0, height * 0.35 - player.size);
+    const beta = clamp(Number(e.beta) || 0, -45, 45);
+    const yaw = (gamma / 45) * 0.95;
+    const pitch = (beta / 45) * 0.22;
+    player.angle = Math.atan2(yaw, -1 + pitch);
   }
 
-  // Mouse support was missing: desktop users can now control the ship too.
-  canvas.addEventListener('pointerdown', e => {
-    if (e.pointerType === 'mouse') setTarget(e);
-  });
-  canvas.addEventListener('pointermove', e => {
-    if (e.pointerType === 'mouse') setTarget(e);
-  });
+  // Draw the triangle using the gyro orientation without changing its position.
+  const basePlayerDraw = Player.prototype.draw;
+  Player.prototype.draw = function drawOrientedPlayer() {
+    const flash = Date.now() < invulnerableUntil && Math.floor(Date.now() / 70) % 2 === 0;
+    const angle = Number.isFinite(this.angle) ? this.angle : 0;
+    ctx.save();
+    ctx.translate(this.x, this.y);
+    ctx.rotate(angle);
+    ctx.beginPath();
+    ctx.moveTo(0, -this.size);
+    ctx.lineTo(-this.size * 0.72, this.size * 0.72);
+    ctx.lineTo(this.size * 0.72, this.size * 0.72);
+    ctx.closePath();
+    ctx.strokeStyle = flash ? '#ff3d3d' : '#fff';
+    ctx.lineWidth = S(2.5);
+    ctx.stroke();
+    ctx.restore();
+  };
+
+  canvas.addEventListener('pointerdown', e => { if (e.pointerType === 'mouse') setTarget(e); });
+  canvas.addEventListener('pointermove', e => { if (e.pointerType === 'mouse') setTarget(e); });
 
   $('gyroToggleBtn').onclick = toggleGyro;
   $('saveScoreBtn').onclick = saveScoreFixed;
@@ -229,26 +231,20 @@
   $('restartBtn').onclick = startGameFixed;
   $('restartFromPauseBtn').onclick = startGameFixed;
   $('pauseBtn').onclick = pauseGameFixed;
-  $('resumeBtn').onclick = () => {
-    settingsMenu.classList.add('hidden');
-    resumeGameFixed();
-  };
+  $('resumeBtn').onclick = () => { settingsMenu.classList.add('hidden'); resumeGameFixed(); };
   $('resumeFromPauseBtn').onclick = resumeGameFixed;
 
-  // The original Game Over close button had no handler and left the UI unusable.
   $('closeGameOverBtn').onclick = () => {
     gameOverMenu.classList.add('hidden');
     settingsBtn.style.display = 'none';
     startBtn.style.display = 'block';
   };
 
-  // Closing settings while paused must reveal the pause overlay again.
   $('closeSettingsBtn').onclick = () => {
     settingsMenu.classList.add('hidden');
     if (paused) pauseOverlay.classList.remove('hidden');
   };
 
-  // Keep the score timer accurate when the settings menu is opened during a pause.
   const originalSettingsClick = settingsBtn.onclick;
   settingsBtn.onclick = e => {
     if (originalSettingsClick) originalSettingsClick.call(settingsBtn, e);

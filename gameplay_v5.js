@@ -1,8 +1,8 @@
 // Infinity gameplay v5 — progressive ship silhouette + weapon layout.
-// Shape changes every 3 power levels. Milestones requested by design:
+// Shape changes every 3 power levels. Milestones:
 // 0: single front; 3: double front; 6: front + two 90° side guns;
 // 9: add rear; 12: two front + sides + rear; 15: double side pairs;
-// 18: double rear. After 18 the same three-stage cycle continues.
+// 18: double rear. After 18 the same three-stage expansion continues.
 (() => {
   const getStage = () => Math.floor(power / 3);
 
@@ -14,52 +14,52 @@
     if (stage === 3) return { front: 1, side: 2, rear: 1 };
     if (stage === 4) return { front: 2, side: 2, rear: 1 };
     if (stage === 5) return { front: 2, side: 4, rear: 1 };
-    // From here every 3 levels expands one weapon group while preserving all others:
-    // 21 front +1, 24 sides +2, 27 rear +1, 30 front +1, ...
+
+    // 21: +1 front, 24: +2 lateral, 27: +1 rear, then repeat.
     const extra = stage - 6;
-    const front = 2 + Math.floor((extra + 2) / 3);
-    const side = 4 + Math.floor((extra + 1) / 3) * 2;
-    const rear = 2 + Math.floor(extra / 3);
+    const cycle = Math.floor(extra / 3);
     const phase = extra % 3;
-    if (phase === 0) return { front, side: Math.max(4, side - 2), rear: Math.max(2, rear - 1) };
-    if (phase === 1) return { front: Math.max(2, front - 1), side, rear: Math.max(2, rear - 1) };
-    return { front: Math.max(2, front - 1), side: Math.max(4, side - 2), rear };
+    return {
+      front: 2 + cycle + (phase >= 0 ? 1 : 0),
+      side: 4 + cycle * 2 + (phase >= 1 ? 2 : 0),
+      rear: 2 + cycle + (phase >= 2 ? 1 : 0)
+    };
   }
 
   function makeWeaponDirections(layout) {
     const dirs = [];
-    const frontSpread = 0.11;
+
+    // Front guns fire straight forward. Multiple front guns are symmetric.
     if (layout.front === 1) dirs.push({ x: 0, y: -1, role: 'front' });
     else {
       const gap = S(8);
       for (let i = 0; i < layout.front; i++) {
         const x = (i - (layout.front - 1) / 2) * gap;
-        dirs.push({ x, y: -1, role: 'front' });
+        dirs.push({ x: 0, y: -1, role: 'front', barrelX: x });
       }
     }
 
+    // Side guns are exactly 90° to the ship axis. Additional pairs spread outward.
     for (let i = 0; i < layout.side; i++) {
       const side = i % 2 === 0 ? -1 : 1;
       const pairIndex = Math.floor(i / 2);
       const offset = S(9 + pairIndex * 9);
-      // Exact 90-degree lateral barrels as requested.
       dirs.push({ x: side, y: 0, role: 'side', offset });
     }
 
-    if (layout.rear > 0) {
-      for (let i = 0; i < layout.rear; i++) {
-        const x = (i - (layout.rear - 1) / 2) * S(8);
-        dirs.push({ x, y: 1, role: 'rear' });
-      }
+    // Rear guns fire exactly backwards.
+    for (let i = 0; i < layout.rear; i++) {
+      const x = (i - (layout.rear - 1) / 2) * S(8);
+      dirs.push({ x: 0, y: 1, role: 'rear', barrelX: x });
     }
     return dirs;
   }
 
   function drawBarrel(x, y, dx, dy, length, widthPx) {
-    const angle = Math.atan2(dy, dx) + Math.PI / 2;
+    const angle = Math.atan2(dy, dx);
     ctx.save();
     ctx.translate(x, y);
-    ctx.rotate(angle);
+    ctx.rotate(angle + Math.PI / 2);
     ctx.strokeStyle = '#fff';
     ctx.lineWidth = widthPx;
     ctx.beginPath();
@@ -81,7 +81,7 @@
     ctx.strokeStyle = flash ? '#ff3d3d' : '#fff';
     ctx.lineWidth = S(2.2);
 
-    // Central hull becomes progressively more complex every 3 power levels.
+    // Hull becomes visibly more complex at every 3-power milestone.
     ctx.beginPath();
     ctx.moveTo(0, -size);
     ctx.lineTo(-size * 0.48, size * 0.30);
@@ -115,11 +115,10 @@
       ctx.stroke();
     }
 
-    const dirs = makeWeaponDirections(layout);
-    dirs.forEach(d => {
+    makeWeaponDirections(layout).forEach(d => {
       let bx = 0, by = 0;
-      if (d.role === 'front') bx = d.x;
-      if (d.role === 'rear') { bx = d.x; by = size * 0.56; }
+      if (d.role === 'front') { bx = d.barrelX || 0; by = -size * 0.56; }
+      if (d.role === 'rear') { bx = d.barrelX || 0; by = size * 0.56; }
       if (d.role === 'side') { bx = d.x * (size * 0.72 + d.offset); by = size * 0.10; }
       const len = d.role === 'side' ? size * 0.64 : size * 0.58;
       drawBarrel(bx, by, d.x, d.y, len, S(2.0));
@@ -127,8 +126,7 @@
     ctx.restore();
   };
 
-  // The same layout drives projectile directions, so the visual silhouette and
-  // actual fire positions always agree.
+  // Visual layout and actual firing layout are identical.
   shoot = function shootV5(now) {
     const p = powerTable[power];
     if (now - lastFire < p.cooldown) return;
@@ -136,13 +134,20 @@
     const layout = layoutForPower();
     const dirs = makeWeaponDirections(layout);
     const damage = playerDamage();
+
     dirs.forEach(d => {
-      let ox = 0, oy = 0;
-      if (d.role === 'front') { ox = d.x; oy = -player.size * 0.75; }
-      else if (d.role === 'rear') { ox = d.x; oy = player.size * 0.65; }
-      else { ox = d.x * player.size * 0.85; oy = 0; }
-      const vx = d.x;
-      const vy = d.y;
+      let ox = 0, oy = 0, vx = 0, vy = 0;
+      if (d.role === 'front') {
+        ox = d.barrelX || 0; oy = -player.size * 0.72;
+        vy = -S(p.speed);
+      } else if (d.role === 'rear') {
+        ox = d.barrelX || 0; oy = player.size * 0.65;
+        vy = S(p.speed);
+      } else {
+        ox = d.x * player.size * 0.85;
+        oy = 0;
+        vx = d.x * S(p.speed);
+      }
       addShot(player.x + ox, player.y + oy, vx, vy, damage);
     });
   };

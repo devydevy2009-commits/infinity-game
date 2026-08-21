@@ -138,14 +138,13 @@
     $('gyroLabel').classList.toggle('hidden', !gyroEnabled); showHardModeNotice();
   }
 
-  // Gyro rotates only the nose. Horizontal mapping stays unchanged; vertical mapping is inverted.
+  // Gyro is intentionally limited to left/right orientation. Vertical tilt is ignored
+  // because iOS/Safari device coordinates can make beta invert the ship unpredictably.
+  // The ship's nose and therefore its shots rotate only around the vertical axis.
   function onOrientation(e) {
     if (!gyroEnabled || !running || paused || !player) return;
     const gamma = clamp(Number(e.gamma) || 0, -45, 45);
-    const beta = clamp(Number(e.beta) || 0, -45, 45);
-    const yaw = (gamma / 45) * 0.95;
-    const pitch = -(beta / 45) * 0.22;
-    player.angle = Math.atan2(yaw, -1 + pitch);
+    player.angle = (gamma / 45) * 0.95;
   }
 
   Player.prototype.draw = function drawOrientedPlayer() {

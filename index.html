@@ -1,11 +1,12 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="it">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="theme-color" content="#000000" />
+  <link rel="manifest" href="manifest.webmanifest" />
   <title>Infinity</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
@@ -15,17 +16,19 @@
     <div id="score">Score: 0</div>
     <div id="lives">Lives: 3</div>
     <div id="timer">Time: 0:00</div>
+    <div id="power">Power: 1</div>
     <button id="startBtn" type="button">Start</button>
-    <button id="settingsBtn" type="button" aria-label="Game menu">⚙︎</button>
+    <button id="settingsBtn" type="button" aria-label="Menu">⚙︎</button>
   </div>
-  <div id="settingsMenu" class="hidden" role="dialog" aria-modal="true" aria-label="Game menu">
+  <div id="settingsMenu" class="hidden" role="dialog" aria-modal="true">
     <div class="menu-content">
       <h2>Infinity</h2>
       <button id="newGameBtn" type="button">New Game</button>
       <button id="pauseBtn" type="button">Pause</button>
       <button id="resumeBtn" class="hidden" type="button">Resume</button>
       <button id="restartBtn" type="button">Restart Game</button>
-      <button id="refreshBtn" type="button">Update App</button>
+      <button id="installBtn" class="hidden" type="button">Installa app</button>
+      <button id="refreshBtn" type="button">Aggiorna app</button>
       <button id="closeSettingsBtn" type="button">Close</button>
     </div>
   </div>

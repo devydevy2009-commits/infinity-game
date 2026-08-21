@@ -2,9 +2,10 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="theme-color" content="#000000" />
   <title>Infinity</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
@@ -14,24 +15,25 @@
     <div id="score">Score: 0</div>
     <div id="lives">Lives: 3</div>
     <div id="timer">Time: 0:00</div>
-    <button id="startBtn">Start</button>
-    <button id="settingsBtn">⚙️</button>
+    <button id="startBtn" type="button">Start</button>
+    <button id="settingsBtn" type="button" aria-label="Game menu">⚙︎</button>
   </div>
-  <div id="settingsMenu" class="hidden">
+  <div id="settingsMenu" class="hidden" role="dialog" aria-modal="true" aria-label="Game menu">
     <div class="menu-content">
-      <h2>Settings</h2>
-      <button id="newGameBtn">New Game</button>
-      <button id="pauseBtn">Pause</button>
-      <button id="resumeBtn" class="hidden">Resume</button>
-      <button id="restartBtn">Restart Game</button>
-      <button id="closeSettingsBtn">Close</button>
+      <h2>Infinity</h2>
+      <button id="newGameBtn" type="button">New Game</button>
+      <button id="pauseBtn" type="button">Pause</button>
+      <button id="resumeBtn" class="hidden" type="button">Resume</button>
+      <button id="restartBtn" type="button">Restart Game</button>
+      <button id="refreshBtn" type="button">Update App</button>
+      <button id="closeSettingsBtn" type="button">Close</button>
     </div>
   </div>
   <div id="pauseOverlay" class="hidden">
     <div class="pause-content">
       <h2>PAUSED</h2>
-      <button id="resumeFromPauseBtn">Resume</button>
-      <button id="restartFromPauseBtn">Restart</button>
+      <button id="resumeFromPauseBtn" type="button">Resume</button>
+      <button id="restartFromPauseBtn" type="button">Restart</button>
     </div>
   </div>
   <script src="game.js"></script>

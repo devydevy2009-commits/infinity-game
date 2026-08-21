@@ -10,6 +10,7 @@ const newGameBtn = document.getElementById('newGameBtn');
 const pauseBtn = document.getElementById('pauseBtn');
 const resumeBtn = document.getElementById('resumeBtn');
 const restartBtn = document.getElementById('restartBtn');
+const refreshBtn = document.getElementById('refreshBtn');
 const closeSettingsBtn = document.getElementById('closeSettingsBtn');
 const pauseOverlay = document.getElementById('pauseOverlay');
 const resumeFromPauseBtn = document.getElementById('resumeFromPauseBtn');
@@ -34,7 +35,6 @@ class Player {
   constructor() {
     this.x = centerX;
     this.y = height * 0.8;
-    this.angle = -Math.PI / 2;
     this.size = 15;
   }
 
@@ -53,7 +53,7 @@ class Player {
   draw() {
     ctx.save();
     ctx.translate(this.x, this.y);
-    ctx.rotate(this.angle);
+    ctx.rotate(-Math.PI / 2);
     ctx.beginPath();
     ctx.moveTo(0, -this.size);
     ctx.lineTo(-this.size / 1.5, this.size);
@@ -388,6 +388,19 @@ function restartGame() {
   startGame();
 }
 
+function forceRefreshApp() {
+  try {
+    if ('caches' in window) {
+      caches.keys().then(names => names.forEach(n => caches.delete(n)));
+    }
+  } catch (e) {}
+  
+  const base = location.href.split('?')[0].split('#')[0];
+  const sep = base.includes('?') ? '&' : '?';
+  const ts = 't=' + Date.now() + '&v=' + Math.random().toString(36).slice(2);
+  location.replace(base + sep + ts);
+}
+
 function gameOver() {
   gameRunning = false;
   if (timerInterval) clearInterval(timerInterval);
@@ -435,6 +448,12 @@ restartBtn.addEventListener('click', (e) => {
   e.stopPropagation();
   restartGame();
   settingsMenu.classList.add('hidden');
+});
+
+refreshBtn.addEventListener('click', (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+  forceRefreshApp();
 });
 
 closeSettingsBtn.addEventListener('click', (e) => {

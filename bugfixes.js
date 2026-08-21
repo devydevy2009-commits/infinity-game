@@ -7,11 +7,10 @@
   let hardMode = false;
   let gyroEnabled = false;
   let gyroListenerAttached = false;
+  let lastSimulationAt = 0;
 
   const originalResetGame = resetGame;
   const originalStartGame = startGame;
-  const originalPauseGame = pauseGame;
-  const originalResumeGame = resumeGame;
   const originalGameOver = gameOver;
   const originalUpdate = update;
 
@@ -29,6 +28,7 @@
     pausedAt = 0;
     pausedTotal = 0;
     finalElapsed = 0;
+    lastSimulationAt = 0;
     originalResetGame();
   }
   resetGame = resetGameFixed;
@@ -107,13 +107,19 @@
     pausedTotal += Date.now() - pausedAt;
     pausedAt = 0;
     paused = false;
+    lastSimulationAt = 0;
     pauseOverlay.classList.add('hidden');
     requestAnimationFrame(loop);
   }
   resumeGame = resumeGameFixed;
 
-  // Apply the advertised +50% hard-mode score bonus without duplicating collision code.
+  // Cap simulation updates at 60 Hz so 90/120/144 Hz displays do not make the game faster.
+  // Rendering can still happen at the display refresh rate.
   function updateFixed() {
+    const now = performance.now();
+    if (lastSimulationAt && now - lastSimulationAt < 1000 / 60) return;
+    lastSimulationAt = now;
+
     const before = score;
     originalUpdate();
     if (hardMode && score > before) {
@@ -180,10 +186,9 @@
   async function toggleGyro() {
     if (!hardMode && typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
       try {
-        const permission = await DeviceOrientationEvent.requestPermission();
-        if (permission !== 'granted') return;
+        await DeviceOrientationEvent.requestPermission();
       } catch {
-        return;
+        // Hard mode still works without gyro; only motion control is unavailable.
       }
     }
 
@@ -193,7 +198,9 @@
       gyroListenerAttached = true;
     }
     gyroEnabled = hardMode && 'DeviceOrientationEvent' in window;
-    $('gyroToggleBtn').textContent = gyroEnabled ? '🌀 Giroscopio (Hard Mode): ON' : '🌀 Hard Mode: ON';
+    $('gyroToggleBtn').textContent = hardMode
+      ? (gyroEnabled ? '🌀 Giroscopio (Hard Mode): ON' : '🌀 Hard Mode: ON')
+      : '🌀 Giroscopio (Hard Mode)';
     $('gyroLabel').classList.toggle('hidden', !gyroEnabled);
     showHardModeNotice();
   }

@@ -12,15 +12,83 @@
 </head>
 <body>
   <canvas id="gameCanvas"></canvas>
+
   <div id="ui">
-    <div id="score">Score: 0</div><div id="lives">Lives: 3</div><div id="timer">Time: 0:00</div><div id="power">Power: 0</div>
-    <button id="startBtn" type="button">Start</button><button id="settingsBtn" type="button" aria-label="Menu">⚙︎</button>
+    <div id="score">Score: 0</div>
+    <div id="lives">Lives: 3</div>
+    <div id="timer">Time: 0:00</div>
+    <div id="power">Power: 0</div>
+
+    <button id="startBtn" type="button">Start</button>
+    <button id="settingsBtn" type="button" aria-label="Menu">⚙︎</button>
   </div>
-  <div id="settingsMenu" class="hidden"><div class="menu-content"><h2>Infinity</h2><button id="newGameBtn" type="button">New Game</button><button id="pauseBtn" type="button">Pause</button><button id="resumeBtn" class="hidden" type="button">Resume</button><button id="restartBtn" type="button">Restart Game</button><button id="scoresBtn" type="button">Scoreboard</button><button id="installBtn" class="hidden" type="button">Installa app</button><button id="iosInstallBtn" type="button">Aggiungi a Home</button><button id="refreshBtn" type="button">Aggiorna app</button><button id="closeSettingsBtn" type="button">Close</button></div></div>
-  <div id="gameOverMenu" class="hidden"><div class="menu-content"><h2>GAME OVER</h2><p id="finalScore"></p><div id="saveScoreBox"><input id="playerName" maxlength="14" placeholder="Il tuo nome" autocomplete="nickname" /><button id="saveScoreBtn" type="button">Salva punteggio</button></div><button id="restartFromGameOverBtn" type="button">Restart</button><button id="showScoresFromGameOverBtn" type="button">Scoreboard</button></div></div>
-  <div id="scoreboardMenu" class="hidden"><div class="menu-content"><h2>Top Scores</h2><ol id="scoreList"></ol><button id="restartFromScoreboardBtn" type="button">Restart</button><button id="backFromScoreboardBtn" type="button">Indietro</button></div></div>
-  <div id="iosInstallHelp" class="hidden"><div class="menu-content install-help"><h2>Aggiungi Infinity</h2><p>In Safari, tocca <strong>Condividi</strong>, scorri le azioni e scegli <strong>Aggiungi a Home</strong>.</p><button id="closeIosInstallHelpBtn" type="button">Indietro</button></div></div>
-  <div id="pauseOverlay" class="hidden"><div class="pause-content"><h2>PAUSED</h2><button id="resumeFromPauseBtn" type="button">Resume</button><button id="restartFromPauseBtn" type="button">Restart</button><button id="backFromPauseBtn" type="button">Indietro</button></div></div>
+
+  <div id="settingsMenu" class="hidden">
+    <div class="menu-content">
+      <h2>Infinity</h2>
+      <p class="menu-note">Ogni sottomenu mantiene sempre accesso a restart e ritorno.</p>
+
+      <button id="newGameBtn" type="button">New Game</button>
+      <button id="pauseBtn" type="button">Pause</button>
+      <button id="resumeBtn" class="hidden" type="button">Resume</button>
+      <button id="restartBtn" type="button">Restart Game</button>
+      <button id="scoresBtn" type="button">Scoreboard</button>
+      <button id="gyroToggleBtn" type="button">🌀 Giroscopio (Hard Mode)</button>
+      <p class="hardmode-hint">Hard Mode: più punti, meno margine di errore.</p>
+      <button id="installBtn" class="hidden" type="button">Installa app</button>
+      <button id="iosInstallBtn" type="button">Aggiungi a Home</button>
+      <button id="refreshBtn" type="button">Aggiorna app</button>
+      <button id="closeSettingsBtn" type="button" class="menu-back">Close</button>
+    </div>
+  </div>
+
+  <div id="gameOverMenu" class="hidden">
+    <div class="menu-content">
+      <h2>GAME OVER</h2>
+      <p id="finalScore"></p>
+
+      <div id="saveScoreBox">
+        <input id="playerName" maxlength="14" placeholder="Il tuo nome" autocomplete="nickname" />
+        <button id="saveScoreBtn" type="button">Salva punteggio</button>
+      </div>
+
+      <button id="restartFromGameOverBtn" type="button">Restart</button>
+      <button id="showScoresFromGameOverBtn" type="button">Scoreboard</button>
+      <button id="closeGameOverBtn" type="button" class="menu-back">Close</button>
+    </div>
+  </div>
+
+  <div id="scoreboardMenu" class="hidden">
+    <div class="menu-content">
+      <h2>Top Scores</h2>
+      <p class="menu-note">Da qui puoi sempre riavviare o tornare indietro.</p>
+      <ol id="scoreList"></ol>
+      <button id="restartFromScoreboardBtn" type="button">Restart</button>
+      <button id="backFromScoreboardBtn" type="button" class="menu-back">Indietro</button>
+      <button id="closeScoresBtn" type="button" class="menu-back">Close</button>
+    </div>
+  </div>
+
+  <div id="iosInstallHelp" class="hidden">
+    <div class="menu-content install-help">
+      <h2>Aggiungi Infinity</h2>
+      <p>In Safari, tocca <strong>Condividi</strong>, scorri le azioni e scegli <strong>Aggiungi a Home</strong>.</p>
+      <button id="closeIosInstallHelpBtn" type="button" class="menu-back">Indietro</button>
+    </div>
+  </div>
+
+  <div id="pauseOverlay" class="hidden">
+    <div class="pause-content menu-content">
+      <h2>PAUSED</h2>
+      <button id="resumeFromPauseBtn" type="button">Resume</button>
+      <button id="restartFromPauseBtn" type="button">Restart</button>
+      <button id="backFromPauseBtn" type="button" class="menu-back">Indietro</button>
+    </div>
+  </div>
+
+  <div id="hardModeNotice" class="hidden" aria-live="polite">⚡ HARD MODE — +50% score</div>
+  <div id="gyroLabel" class="hidden" aria-live="polite">HARD MODE 🌀</div>
+
   <script src="game.js"></script>
 </body>
 </html>

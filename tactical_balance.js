@@ -100,8 +100,7 @@
 
   Enemy.prototype.draw = function () {
     originalEnemyDraw.call(this);
-    // The consolidated engine already draws the base Transport HP bar.
-    // Do not add a second bar for it; only add the tactical bar to other types.
+    // Transport already owns its base HP bar in the consolidated engine.
     if (this.kind !== 'transport') drawHealthBar(this);
 
     if (this.kind === 'ghost') {
@@ -114,12 +113,13 @@
       ctx.arc(this.x, this.y, this.size * (advanced ? 1.65 : 1.45), 0, Math.PI * 2);
       ctx.stroke();
       if (advanced) {
+        ctx.translate(this.x, this.y);
         ctx.rotate(Date.now() / 1200);
         ctx.beginPath();
-        ctx.moveTo(this.x - this.size * 1.55, this.y);
-        ctx.lineTo(this.x + this.size * 1.55, this.y);
-        ctx.moveTo(this.x, this.y - this.size * 1.55);
-        ctx.lineTo(this.x, this.y + this.size * 1.55);
+        ctx.moveTo(-this.size * 1.55, 0);
+        ctx.lineTo(this.size * 1.55, 0);
+        ctx.moveTo(0, -this.size * 1.55);
+        ctx.lineTo(0, this.size * 1.55);
         ctx.stroke();
       }
       ctx.restore();
@@ -195,22 +195,27 @@
 
   Powerup.prototype.draw = function () {
     originalPowerupDraw.call(this);
-    if (!this.protected) return;
+    // Every power-up is now visually a special cargo vessel carrying crates.
     ctx.save();
-    // Special cargo ship / supply crate visual language.
     ctx.strokeStyle = '#69c4ff';
-    ctx.globalAlpha = 0.45 + Math.sin(Date.now() / 180) * 0.12;
+    ctx.globalAlpha = this.protected ? 0.48 : 0.36;
     ctx.lineWidth = S(1.5);
     ctx.beginPath();
-    ctx.arc(this.x, this.y, this.size * 1.55, 0, Math.PI * 2);
+    ctx.arc(this.x, this.y, this.size * 1.45, 0, Math.PI * 2);
     ctx.stroke();
-    ctx.strokeRect(this.x - this.size * 0.85, this.y - this.size * 0.55, this.size * 1.7, this.size * 1.1);
+    ctx.strokeRect(this.x - this.size * 0.95, this.y - this.size * 0.58, this.size * 1.9, this.size * 1.16);
     ctx.beginPath();
-    ctx.moveTo(this.x - this.size * 0.55, this.y - this.size * 0.55);
-    ctx.lineTo(this.x - this.size * 0.55, this.y + this.size * 0.55);
-    ctx.moveTo(this.x + this.size * 0.05, this.y - this.size * 0.55);
-    ctx.lineTo(this.x + this.size * 0.05, this.y + this.size * 0.55);
+    ctx.moveTo(this.x - this.size * 0.95, this.y);
+    ctx.lineTo(this.x + this.size * 0.95, this.y);
+    ctx.moveTo(this.x - this.size * 0.28, this.y - this.size * 0.58);
+    ctx.lineTo(this.x - this.size * 0.28, this.y);
+    ctx.moveTo(this.x + this.size * 0.32, this.y);
+    ctx.lineTo(this.x + this.size * 0.32, this.y + this.size * 0.58);
     ctx.stroke();
+    // A small bright crate mark makes the collectible readable at speed.
+    ctx.fillStyle = '#d8f4ff';
+    ctx.globalAlpha = this.protected ? 0.9 : 0.72;
+    ctx.fillRect(this.x - this.size * 0.16, this.y - this.size * 0.16, this.size * 0.32, this.size * 0.32);
     ctx.restore();
   };
 })();

@@ -39,14 +39,11 @@
     enemy.maxHp = enemy.hp;
   }
 
-  // Touch/pen input remains responsive, but a new contact point is reached
-  // through a fast glide instead of an instantaneous teleport.
   Player.prototype.update = function (x, y) {
     if (x === undefined || y === undefined || (inputType !== 'touch' && inputType !== 'pen')) {
       originalPlayerUpdate.call(this, x, y);
       return;
     }
-
     const dx = x - this.x;
     const dy = y - this.y;
     const distance = Math.hypot(dx, dy);
@@ -54,20 +51,16 @@
       originalPlayerUpdate.call(this, x, y);
       return;
     }
-
     originalPlayerUpdate.call(this, this.x + dx * TOUCH_MOVE_FACTOR, this.y + dy * TOUCH_MOVE_FACTOR);
   };
 
-  // Hunter nose always points at the player; it no longer spins independently.
   Enemy.prototype.updateHunter = function (f) {
     if (!player) return;
     const originalY = this.y;
     originalHunterUpdate.call(this, f);
-
     const dx = player.x - this.x;
     const dy = player.y - this.y;
     this.rot = Math.atan2(dy, dx) + Math.PI / 2;
-
     const safeLimit = height * MAX_HUNTER_DEPTH;
     if (this.y > safeLimit) {
       const push = S(0.095 + tier() * 0.002);
@@ -76,7 +69,6 @@
       this.vy *= Math.pow(0.992, f);
       if (this.y > height * 0.74) this.y = Math.min(originalY, safeLimit);
     }
-
     const speed = Math.hypot(this.vx, this.vy);
     const cap = S(MAX_ENEMY_SPEED + Math.min(tier(), 10) * 0.04);
     if (speed > cap) {
@@ -88,21 +80,18 @@
   Enemy.prototype.update = function (f) {
     originalEnemyUpdate.call(this, f);
     ensureScaledHealth(this);
-
     const speed = Math.hypot(this.vx, this.vy);
     const cap = S(MAX_ENEMY_SPEED + Math.min(tier(), 10) * 0.04);
     if (speed > cap) {
       this.vx = this.vx / speed * cap;
       this.vy = this.vy / speed * cap;
     }
-
     if (this.protectedPowerup && powerups.includes(this.protectedPowerup)) {
       const p = this.protectedPowerup;
       this.x = p.x + this.guardOffset.x;
       this.y = p.y + this.guardOffset.y;
       if (this.kind !== 'hunter') this.rot += 0.02 * f;
     }
-
     if (this.kind === 'ghost' && tier() >= GHOST_FIRE_START) {
       if (!this.lastGhostShot) this.lastGhostShot = Date.now() + Math.random() * GHOST_FIRE_INTERVAL;
       if (Date.now() - this.lastGhostShot >= GHOST_FIRE_INTERVAL) {
@@ -132,7 +121,6 @@
   Enemy.prototype.draw = function () {
     originalEnemyDraw.call(this);
     if (this.kind !== 'transport') drawHealthBar(this);
-
     if (this.kind === 'ghost') {
       const advanced = tier() >= GHOST_FIRE_START;
       ctx.save();
@@ -143,47 +131,32 @@
       ctx.arc(this.x, this.y, this.size * (advanced ? 1.65 : 1.45), 0, Math.PI * 2);
       ctx.stroke();
       if (advanced) {
-        // Diamond marker instead of the old central plus.
         ctx.translate(this.x, this.y);
         ctx.rotate(Date.now() / 1200);
         const s = this.size * 0.72;
         ctx.beginPath();
-        ctx.moveTo(0, -s);
-        ctx.lineTo(s, 0);
-        ctx.lineTo(0, s);
-        ctx.lineTo(-s, 0);
-        ctx.closePath();
-        ctx.stroke();
+        ctx.moveTo(0, -s); ctx.lineTo(s, 0); ctx.lineTo(0, s); ctx.lineTo(-s, 0); ctx.closePath(); ctx.stroke();
       }
       ctx.restore();
     }
   };
 
   function formationOffsets(shape, count) {
-    const gapX = S(48);
-    const gapY = S(42);
-    const out = [];
-
+    const gapX = S(48), gapY = S(42), out = [];
     if (shape === 'line') {
       for (let i = 0; i < count; i++) out.push({ x: (i - (count - 1) / 2) * gapX, y: 0 });
     } else if (shape === 'v') {
       for (let i = 0; i < count; i++) {
-        const row = Math.floor((i + 1) / 2);
-        const side = i % 2 === 0 ? -1 : 1;
+        const row = Math.floor((i + 1) / 2), side = i % 2 === 0 ? -1 : 1;
         out.push({ x: row * gapX * side, y: row * gapY });
       }
       out[0] = { x: 0, y: 0 };
     } else if (shape === 'diamond') {
-      const points = [
-        { x: 0, y: 0 }, { x: -gapX, y: gapY }, { x: gapX, y: gapY },
-        { x: 0, y: gapY * 2 }, { x: -gapX * 2, y: gapY * 2 }, { x: gapX * 2, y: gapY * 2 },
-        { x: 0, y: gapY * 3 }, { x: -gapX, y: gapY * 3 }, { x: gapX, y: gapY * 3 }
-      ];
+      const points = [{ x: 0, y: 0 }, { x: -gapX, y: gapY }, { x: gapX, y: gapY }, { x: 0, y: gapY * 2 }, { x: -gapX * 2, y: gapY * 2 }, { x: gapX * 2, y: gapY * 2 }, { x: 0, y: gapY * 3 }, { x: -gapX, y: gapY * 3 }, { x: gapX, y: gapY * 3 }];
       return points.slice(0, count);
     } else {
       for (let i = 0; i < count; i++) {
-        const row = Math.floor(i / 3);
-        const col = i % 3;
+        const row = Math.floor(i / 3), col = i % 3;
         out.push({ x: (col - 1) * gapX * (1 + row * 0.25), y: row * gapY });
       }
     }
@@ -206,8 +179,6 @@
     });
   }
 
-  // Formations now rotate between several tactical patterns. None creates a
-  // power-up: protected power-ups are a separate, less frequent event.
   window.makeFormation = function () {
     const t = tier();
     const shapes = ['line', 'v', 'diamond', 'wedge'];
@@ -219,19 +190,42 @@
     const id = ++formationSerial;
     const kinds = formationKinds(t, count, variant);
     const offsets = formationOffsets(shape, count);
-
+    const anchor = { x: center, y: -S(46), vx: 0, vy: S(1.05 + Math.min(t, 15) * 0.04), id };
     offsets.forEach((o, i) => {
       const e = new Enemy(kinds[i]);
-      e.x = center + o.x;
-      e.y = -S(46) + o.y;
-      e.formationId = id;
-      e.formOffset = o;
-      e.vx = 0;
-      e.vy = S(1.05 + Math.min(t, 15) * 0.04);
+      e.x = anchor.x + o.x; e.y = anchor.y + o.y;
+      e.formationId = id; e.formOffset = o; e.formAnchor = anchor;
+      e.vx = 0; e.vy = anchor.vy;
       ensureScaledHealth(e);
       if (e.kind === 'hunter' && player) e.rot = Math.atan2(player.y - e.y, player.x - e.x) + Math.PI / 2;
       enemies.push(e);
     });
+  };
+
+  // Stable formation anchor: members never elect a new anchor when the first
+  // member dies. The shared anchor survives until the whole formation is gone.
+  window.updateFormations = function (f) {
+    const groups = new Map();
+    for (const e of enemies) {
+      if (!e.formationId || !e.formAnchor) continue;
+      if (!groups.has(e.formationId)) groups.set(e.formationId, { anchor: e.formAnchor, members: [] });
+      groups.get(e.formationId).members.push(e);
+    }
+    const margin = S(90);
+    for (const { anchor, members } of groups.values()) {
+      anchor.x = clamp(anchor.x + anchor.vx * f, margin, Math.max(margin, width - margin));
+      anchor.y += anchor.vy * f;
+      const maxOffsetY = members.reduce((m, e) => Math.max(m, Math.abs(e.formOffset?.y || 0)), 0);
+      const maxOffsetX = members.reduce((m, e) => Math.max(m, Math.abs(e.formOffset?.x || 0)), 0);
+      if (anchor.x < maxOffsetX) anchor.x = maxOffsetX;
+      if (anchor.x > width - maxOffsetX) anchor.x = width - maxOffsetX;
+      if (anchor.y > height + S(130) + maxOffsetY) anchor.vy = 0;
+      for (const e of members) {
+        e.x = anchor.x + (e.formOffset?.x || 0);
+        e.y = anchor.y + (e.formOffset?.y || 0);
+        if (e.kind === 'hunter' && player) e.rot = Math.atan2(player.y - e.y, player.x - e.x) + Math.PI / 2;
+      }
+    }
   };
 
   function protectPowerup(p) {
@@ -241,53 +235,34 @@
     const guardCount = t >= 8 ? 5 : t >= 5 ? 4 : 3;
     const kinds = t >= 6 ? ['hunter', 'drone', 'drone', 'transport', 'hunter'] : ['hunter', 'drone', 'drone', 'transport'];
     const radius = S(46 + Math.min(t, 10) * 3);
-
     for (let i = 0; i < guardCount; i++) {
       const e = new Enemy(kinds[i % kinds.length]);
       const a = (i / guardCount) * Math.PI * 2;
-      e.formationId = null;
-      e.protectedPowerup = p;
+      e.formationId = null; e.protectedPowerup = p;
       e.guardOffset = { x: Math.cos(a) * radius, y: Math.sin(a) * radius };
-      e.x = p.x + e.guardOffset.x;
-      e.y = p.y + e.guardOffset.y;
-      ensureScaledHealth(e);
-      enemies.push(e);
+      e.x = p.x + e.guardOffset.x; e.y = p.y + e.guardOffset.y;
+      ensureScaledHealth(e); enemies.push(e);
     }
   }
 
   window.spawn = function () {
     const beforePowerups = powerups.length;
     originalSpawn();
-    if (tier() >= 2 && powerups.length > beforePowerups && Math.random() < PROTECTED_POWERUP_CHANCE) {
-      protectPowerup(powerups[powerups.length - 1]);
-    }
+    if (tier() >= 2 && powerups.length > beforePowerups && Math.random() < PROTECTED_POWERUP_CHANCE) protectPowerup(powerups[powerups.length - 1]);
   };
 
   Powerup.prototype.draw = function () {
     originalPowerupDraw.call(this);
-    ctx.save();
-    ctx.strokeStyle = '#69c4ff';
-    ctx.globalAlpha = this.protected ? 0.48 : 0.36;
-    ctx.lineWidth = S(1.5);
-    ctx.beginPath();
-    ctx.arc(this.x, this.y, this.size * 1.45, 0, Math.PI * 2);
-    ctx.stroke();
+    ctx.save(); ctx.strokeStyle = '#69c4ff'; ctx.globalAlpha = this.protected ? 0.48 : 0.36; ctx.lineWidth = S(1.5);
+    ctx.beginPath(); ctx.arc(this.x, this.y, this.size * 1.45, 0, Math.PI * 2); ctx.stroke();
     ctx.strokeRect(this.x - this.size * 0.95, this.y - this.size * 0.58, this.size * 1.9, this.size * 1.16);
     ctx.beginPath();
-    ctx.moveTo(this.x - this.size * 0.95, this.y);
-    ctx.lineTo(this.x + this.size * 0.95, this.y);
-    ctx.moveTo(this.x - this.size * 0.28, this.y - this.size * 0.58);
-    ctx.lineTo(this.x - this.size * 0.28, this.y);
-    ctx.moveTo(this.x + this.size * 0.32, this.y);
-    ctx.lineTo(this.x + this.size * 0.32, this.y + this.size * 0.58);
-    ctx.stroke();
-    ctx.fillStyle = '#d8f4ff';
-    ctx.globalAlpha = this.protected ? 0.9 : 0.72;
-    ctx.fillRect(this.x - this.size * 0.16, this.y - this.size * 0.16, this.size * 0.32, this.size * 0.32);
-    ctx.restore();
+    ctx.moveTo(this.x - this.size * 0.95, this.y); ctx.lineTo(this.x + this.size * 0.95, this.y);
+    ctx.moveTo(this.x - this.size * 0.28, this.y - this.size * 0.58); ctx.lineTo(this.x - this.size * 0.28, this.y);
+    ctx.moveTo(this.x + this.size * 0.32, this.y); ctx.lineTo(this.x + this.size * 0.32, this.y + this.size * 0.58); ctx.stroke();
+    ctx.fillStyle = '#d8f4ff'; ctx.globalAlpha = this.protected ? 0.9 : 0.72; ctx.fillRect(this.x - this.size * 0.16, this.y - this.size * 0.16, this.size * 0.32, this.size * 0.32); ctx.restore();
   };
 
-  // Keep mouse unchanged. Touch receives the requested 25px forward offset.
   const originalSetTarget = window.setTarget;
   if (typeof originalSetTarget === 'function') {
     window.setTarget = function (e) {

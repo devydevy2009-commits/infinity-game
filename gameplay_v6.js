@@ -1,23 +1,26 @@
 // Infinity gameplay v6 — FINAL AUTHORITATIVE WEAPON SYSTEM.
-// This file is loaded LAST and therefore directly replaces the global shoot()
-// binding. No older gameplay layer can capture the firing function after this.
-// Gyroscope is intentionally NOT used for firing yet.
+// This file is the only owner of player firing and weapon geometry.
+// Gyroscope is intentionally not used for firing yet.
 (() => {
   function layoutForPower() {
     const stage = Math.floor(Math.max(0, power) / 3);
-    if (stage <= 0) return { front: 1, side: 0, rear: 0 };
-    if (stage === 1) return { front: 2, side: 0, rear: 0 };
-    if (stage === 2) return { front: 1, side: 2, rear: 0 };
-    if (stage === 3) return { front: 1, side: 2, rear: 1 };
-    if (stage === 4) return { front: 2, side: 2, rear: 1 };
-    if (stage === 5) return { front: 2, side: 4, rear: 1 };
-    if (stage === 6) return { front: 2, side: 4, rear: 2 };
 
-    const extra = stage - 6;
+    // Progression repeats a clear three-step cycle:
+    // P0: 1 front
+    // P3: 2 front
+    // P6: 2 front + 2 sides
+    // P9: 2 front + 2 sides + 2 rear
+    // P12: 3 front + 2 sides + 2 rear
+    // P15: 3 front + 4 sides + 2 rear
+    // P18: 3 front + 4 sides + 4 rear
+    // P21: 4 front + 4 sides + 4 rear ...
+    const cycle = Math.floor(stage / 3);
+    const phase = stage % 3;
+
     return {
-      front: 2,
-      side: 4 + Math.floor((extra + 1) / 2) * 2,
-      rear: 2 + Math.floor(extra / 2)
+      front: 1 + cycle + (phase >= 1 ? 1 : 0),
+      side: cycle * 2 + (phase >= 2 ? 2 : 0),
+      rear: cycle * 2
     };
   }
 
@@ -28,7 +31,6 @@
     const sideGap = S(10);
     const rearGap = S(8);
 
-    // FRONT: exactly (0,-1).
     for (let i = 0; i < l.front; i++) {
       out.push({
         x: (i - (l.front - 1) / 2) * frontGap,
@@ -39,7 +41,6 @@
       });
     }
 
-    // SIDES: exactly (-1,0) or (+1,0), never diagonal.
     for (let i = 0; i < l.side; i++) {
       const pair = Math.floor(i / 2);
       const side = i % 2 === 0 ? -1 : 1;
@@ -52,7 +53,6 @@
       });
     }
 
-    // REAR: exactly (0,+1).
     for (let i = 0; i < l.rear; i++) {
       out.push({
         x: (i - (l.rear - 1) / 2) * rearGap,
@@ -62,18 +62,16 @@
         role: 'rear'
       });
     }
+
     return out;
   }
 
-  function makeShot(s, damage, speed) {
-    // Do NOT normalize into an angle. Preserve the exact axis vector.
-    const vx = s.dx * speed;
-    const vy = s.dy * speed;
+  function makeShot(slot, damage, speed) {
     return {
-      x: player.x + s.x,
-      y: player.y + s.y,
-      vx,
-      vy,
+      x: player.x + slot.x,
+      y: player.y + slot.y,
+      vx: slot.dx * speed,
+      vy: slot.dy * speed,
       r: S(damage > 1 ? 4.6 : 3.4),
       life: 1000,
       damage,
@@ -92,8 +90,6 @@
     };
   }
 
-  // IMPORTANT: overwrite the actual global binding used by game.js update().
-  // This is the critical fix for the old gameplay_v3/finaltouch shoot overrides.
   shoot = function shootV6(now) {
     const index = Math.min(Math.max(power, 0), powerTable.length - 1);
     const p = powerTable[index];
@@ -102,9 +98,8 @@
 
     const speed = S(p.speed);
     const damage = 1 + Math.floor(power / 8);
-
-    for (const s of slots()) {
-      bullets.push(makeShot(s, damage, speed));
+    for (const slot of slots()) {
+      bullets.push(makeShot(slot, damage, speed));
     }
   };
 

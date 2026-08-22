@@ -1,0 +1,1 @@
+{"private":true,"scripts":{"check":"node --check game.js && node --check tactical_balance.js"}}

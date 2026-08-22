@@ -1,1 +1,0 @@
-Formation stability is handled in tactical_balance.js with a persistent shared anchor per formation. This avoids re-anchoring when the first member is destroyed and keeps entry bounded.

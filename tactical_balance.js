@@ -35,12 +35,10 @@
     enemy.maxHp = enemy.hp;
   }
 
-  // Keep Hunter tracking, but make the dive into the player's safe zone rare.
   Enemy.prototype.updateHunter = function (f) {
     if (!player) return;
     const originalY = this.y;
     originalHunterUpdate.call(this, f);
-
     const safeLimit = height * MAX_HUNTER_DEPTH;
     if (this.y > safeLimit) {
       const push = S(0.095 + tier() * 0.002);
@@ -49,7 +47,6 @@
       this.vy *= Math.pow(0.992, f);
       if (this.y > height * 0.74) this.y = Math.min(originalY, safeLimit);
     }
-
     const speed = Math.hypot(this.vx, this.vy);
     const cap = S(MAX_ENEMY_SPEED + Math.min(tier(), 10) * 0.04);
     if (speed > cap) {
@@ -61,8 +58,6 @@
   Enemy.prototype.update = function (f) {
     originalEnemyUpdate.call(this, f);
     ensureScaledHealth(this);
-
-    // Prevent malformed spawn vectors from producing one-frame cross-screen enemies.
     const speed = Math.hypot(this.vx, this.vy);
     const cap = S(MAX_ENEMY_SPEED + Math.min(tier(), 10) * 0.04);
     if (speed > cap) {
@@ -70,7 +65,6 @@
       this.vy = this.vy / speed * cap;
     }
 
-    // Guards orbit their protected power-up instead of entering the normal formation solver.
     if (this.protectedPowerup && powerups.includes(this.protectedPowerup)) {
       const p = this.protectedPowerup;
       this.x = p.x + this.guardOffset.x;
@@ -106,16 +100,28 @@
 
   Enemy.prototype.draw = function () {
     originalEnemyDraw.call(this);
-    drawHealthBar(this);
+    // The consolidated engine already draws the base Transport HP bar.
+    // Do not add a second bar for it; only add the tactical bar to other types.
+    if (this.kind !== 'transport') drawHealthBar(this);
 
-    if (this.kind === 'ghost' && tier() >= GHOST_FIRE_START) {
+    if (this.kind === 'ghost') {
+      const advanced = tier() >= GHOST_FIRE_START;
       ctx.save();
       ctx.strokeStyle = kindColor('ghost');
-      ctx.globalAlpha = 0.35 + Math.sin(Date.now() / 160) * 0.12;
-      ctx.lineWidth = S(1.4);
+      ctx.globalAlpha = advanced ? 0.52 + Math.sin(Date.now() / 130) * 0.14 : 0.30;
+      ctx.lineWidth = S(advanced ? 2 : 1.4);
       ctx.beginPath();
-      ctx.arc(this.x, this.y, this.size * 1.45, 0, Math.PI * 2);
+      ctx.arc(this.x, this.y, this.size * (advanced ? 1.65 : 1.45), 0, Math.PI * 2);
       ctx.stroke();
+      if (advanced) {
+        ctx.rotate(Date.now() / 1200);
+        ctx.beginPath();
+        ctx.moveTo(this.x - this.size * 1.55, this.y);
+        ctx.lineTo(this.x + this.size * 1.55, this.y);
+        ctx.moveTo(this.x, this.y - this.size * 1.55);
+        ctx.lineTo(this.x, this.y + this.size * 1.55);
+        ctx.stroke();
+      }
       ctx.restore();
     }
   };
@@ -126,7 +132,6 @@
     if (t >= 3) pool.push('hunter');
     if (t >= 4) pool.push('transport');
     if (t >= 5) pool.push('ghost');
-
     return Array.from({ length: count }, (_, i) => {
       if (i === 0 && t >= 3) return 'hunter';
       if (i === 1 && t >= 2) return 'drone';
@@ -135,7 +140,6 @@
     });
   }
 
-  // Mixed formations replace transport-only waves while preserving the original geometry.
   window.makeFormation = function () {
     const t = tier();
     const count = Math.min(9, 4 + Math.floor(t / 2));
@@ -143,14 +147,12 @@
     const id = ++formationSerial;
     const kinds = formationKinds(t, count);
     const offsets = [];
-
     for (let i = 0; i < count; i++) {
       const cols = Math.min(3, count);
       const row = Math.floor(i / cols);
       const col = i % cols;
       offsets.push({ x: (col - (Math.min(cols, count - row * cols) - 1) / 2) * S(48), y: row * S(42) });
     }
-
     offsets.forEach((o, i) => {
       const e = new Enemy(kinds[i]);
       e.x = center + o.x;
@@ -169,12 +171,10 @@
     const p = new Powerup();
     p.protected = true;
     powerups.push(p);
-
     const t = tier();
     const guardCount = t >= 8 ? 5 : t >= 5 ? 4 : 3;
     const kinds = t >= 6 ? ['hunter', 'drone', 'drone', 'transport', 'hunter'] : ['hunter', 'drone', 'drone', 'transport'];
     const radius = S(46 + Math.min(t, 10) * 3);
-
     for (let i = 0; i < guardCount; i++) {
       const e = new Enemy(kinds[i % kinds.length]);
       const a = (i / guardCount) * Math.PI * 2;
@@ -190,7 +190,6 @@
 
   window.spawn = function () {
     originalSpawn();
-    // Low-frequency check avoids changing the existing spawn cadence.
     if (tier() >= 2 && Date.now() % 97 < 2) spawnProtectedPowerup();
   };
 
@@ -198,11 +197,19 @@
     originalPowerupDraw.call(this);
     if (!this.protected) return;
     ctx.save();
+    // Special cargo ship / supply crate visual language.
     ctx.strokeStyle = '#69c4ff';
-    ctx.globalAlpha = 0.35 + Math.sin(Date.now() / 180) * 0.12;
+    ctx.globalAlpha = 0.45 + Math.sin(Date.now() / 180) * 0.12;
     ctx.lineWidth = S(1.5);
     ctx.beginPath();
-    ctx.arc(this.x, this.y, this.size * 1.45, 0, Math.PI * 2);
+    ctx.arc(this.x, this.y, this.size * 1.55, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.strokeRect(this.x - this.size * 0.85, this.y - this.size * 0.55, this.size * 1.7, this.size * 1.1);
+    ctx.beginPath();
+    ctx.moveTo(this.x - this.size * 0.55, this.y - this.size * 0.55);
+    ctx.lineTo(this.x - this.size * 0.55, this.y + this.size * 0.55);
+    ctx.moveTo(this.x + this.size * 0.05, this.y - this.size * 0.55);
+    ctx.lineTo(this.x + this.size * 0.05, this.y + this.size * 0.55);
     ctx.stroke();
     ctx.restore();
   };

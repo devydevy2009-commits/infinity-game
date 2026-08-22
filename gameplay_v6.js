@@ -19,7 +19,7 @@
 
     return {
       front: 1 + cycle + (levelInCycle >= 1 ? 1 : 0),
-      side: (cycle > 0 ? cycle : 0) + (levelInCycle >= 2 ? 1 : 0),
+      side: cycle + (levelInCycle >= 2 ? 1 : 0),
       rear: cycle
     };
   }
@@ -30,6 +30,7 @@
     const frontGap = S(8);
     const sideGap = S(10);
     const rearGap = S(8);
+    const sideOffset = S(8);
 
     for (let i = 0; i < l.front; i++) {
       out.push({
@@ -41,16 +42,24 @@
       });
     }
 
-    // Keep left/right symmetry: a side count > 1 is distributed alternately.
-    for (let i = 0; i < l.side; i++) {
-      const centerIndex = (l.side - 1) / 2;
-      const lateralIndex = i - centerIndex;
-      const side = lateralIndex === 0 ? (i % 2 === 0 ? -1 : 1) : Math.sign(lateralIndex);
-      const distance = S(13) + Math.abs(lateralIndex) * sideGap;
+    // Side barrels are always exactly horizontal. When the side count is odd,
+    // the extra barrel is placed on the left and the group remains visually tight.
+    const leftCount = Math.ceil(l.side / 2);
+    const rightCount = Math.floor(l.side / 2);
+    for (let i = 0; i < leftCount; i++) {
       out.push({
-        x: side * distance,
-        y: 0,
-        dx: side,
+        x: -(S(13) + i * sideGap),
+        y: (i - (leftCount - 1) / 2) * sideOffset,
+        dx: -1,
+        dy: 0,
+        role: 'side'
+      });
+    }
+    for (let i = 0; i < rightCount; i++) {
+      out.push({
+        x: S(13) + i * sideGap,
+        y: (i - (rightCount - 1) / 2) * sideOffset,
+        dx: 1,
         dy: 0,
         role: 'side'
       });

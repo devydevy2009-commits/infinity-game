@@ -1,71 +1,75 @@
-// Infinity gameplay v5 — progressive ship silhouette + weapon layout.
-// Shape changes every 3 power levels. Milestones:
-// 0: single front; 3: double front; 6: front + two 90° side guns;
-// 9: add rear; 12: two front + sides + rear; 15: double side pairs;
-// 18: double rear. After 18 the same three-stage expansion continues.
-//
-// IMPORTANT: all weapon directions are defined in the ship's LOCAL frame.
-// The player's nose is always local (0,-1). Gyro rotation is then applied
-// once to both the drawing and projectile vectors, so the visual weapon
-// direction and the real firing direction cannot diverge.
+// Infinity gameplay v5 — deterministic power-up weapon layout.
+// The weapon geometry follows the requested progression exactly.
+// Gyroscope is intentionally NOT used for firing yet: the ship may rotate,
+// but the base weapon pattern remains fixed to the screen axes until gyro
+// integration is revisited later.
 (() => {
-  const getStage = () => Math.floor(power / 3);
+  const getStage = () => Math.floor(Math.max(0, power) / 3);
 
   function layoutForPower() {
     const stage = getStage();
     if (stage <= 0) return { front: 1, side: 0, rear: 0 };
     if (stage === 1) return { front: 2, side: 0, rear: 0 };
-    // Power 6: exactly one nose gun + two lateral guns at +/-90°.
     if (stage === 2) return { front: 1, side: 2, rear: 0 };
     if (stage === 3) return { front: 1, side: 2, rear: 1 };
     if (stage === 4) return { front: 2, side: 2, rear: 1 };
     if (stage === 5) return { front: 2, side: 4, rear: 1 };
+    if (stage === 6) return { front: 2, side: 4, rear: 2 };
 
-    // 21: +1 front, 24: +2 lateral, 27: +1 rear, then repeat.
+    // 21+: continue expanding the lateral/rear battery.
     const extra = stage - 6;
-    const cycle = Math.floor(extra / 3);
-    const phase = extra % 3;
     return {
-      front: 2 + cycle + (phase >= 0 ? 1 : 0),
-      side: 4 + cycle * 2 + (phase >= 1 ? 2 : 0),
-      rear: 2 + cycle + (phase >= 2 ? 1 : 0)
+      front: 2,
+      side: 4 + Math.floor((extra + 1) / 2) * 2,
+      rear: 2 + Math.floor(extra / 2)
     };
   }
 
-  function makeWeaponDirections(layout) {
-    const dirs = [];
+  function weaponSlots(layout) {
+    const slots = [];
+    const frontGap = S(8);
+    const sideGap = S(10);
+    const rearGap = S(8);
 
-    // Front guns are parallel to the ship nose: exactly (0,-1).
-    if (layout.front === 1) {
-      dirs.push({ x: 0, y: -1, role: 'front', barrelX: 0 });
-    } else {
-      const gap = S(8);
-      for (let i = 0; i < layout.front; i++) {
-        const barrelX = (i - (layout.front - 1) / 2) * gap;
-        dirs.push({ x: 0, y: -1, role: 'front', barrelX });
-      }
+    // Front: all shots are EXACTLY vertical, parallel to the nose.
+    for (let i = 0; i < layout.front; i++) {
+      slots.push({
+        x: (i - (layout.front - 1) / 2) * frontGap,
+        y: -S(0.72 * 16),
+        dx: 0,
+        dy: -1,
+        role: 'front'
+      });
     }
 
-    // Side guns are mathematically perpendicular to the nose: (±1,0).
+    // Side: exactly 90 degrees to the front axis.
+    // Alternate left/right so every pair is symmetric.
     for (let i = 0; i < layout.side; i++) {
-      const side = i % 2 === 0 ? -1 : 1;
-      const pairIndex = Math.floor(i / 2);
-      const offset = S(9 + pairIndex * 9);
-      dirs.push({ x: side, y: 0, role: 'side', offset });
+      const pair = Math.floor(i / 2);
+      const left = i % 2 === 0;
+      slots.push({
+        x: (left ? -1 : 1) * (S(0.72 * 16) + pair * sideGap),
+        y: S(1.0),
+        dx: left ? -1 : 1,
+        dy: 0,
+        role: 'side'
+      });
     }
 
-    // Rear guns are exactly opposite the nose: (0,1).
+    // Rear: exactly opposite the front axis.
     for (let i = 0; i < layout.rear; i++) {
-      const barrelX = (i - (layout.rear - 1) / 2) * S(8);
-      dirs.push({ x: 0, y: 1, role: 'rear', barrelX });
+      slots.push({
+        x: (i - (layout.rear - 1) / 2) * rearGap,
+        y: S(0.65 * 16),
+        dx: 0,
+        dy: 1,
+        role: 'rear'
+      });
     }
-    return dirs;
+    return slots;
   }
 
   function drawBarrel(x, y, dx, dy, length, widthPx) {
-    // The barrel is drawn along the supplied local direction.
-    // A vertical source line points along local +Y; rotating by atan2(dx,-dy)
-    // maps it to the requested direction without introducing an extra offset.
     const angle = Math.atan2(dx, -dy);
     ctx.save();
     ctx.translate(x, y);
@@ -79,13 +83,6 @@
     ctx.restore();
   }
 
-  // Rotate a vector from ship-local coordinates into canvas/world coordinates.
-  // Canvas +angle is clockwise in screen coordinates, matching the gyro angle.
-  function toWorld(x, y, angle) {
-    const c = Math.cos(angle), s = Math.sin(angle);
-    return { x: x * c - y * s, y: x * s + y * c };
-  }
-
   Player.prototype.draw = function drawV5() {
     const flash = Date.now() < invulnerableUntil && Math.floor(Date.now() / 70) % 2 === 0;
     const layout = layoutForPower();
@@ -96,12 +93,10 @@
 
     ctx.save();
     ctx.translate(this.x, this.y);
-    // The nose remains the single authoritative orientation reference.
     ctx.rotate(angle);
     ctx.strokeStyle = flash ? '#ff3d3d' : '#fff';
     ctx.lineWidth = S(2.2);
 
-    // Hull becomes visibly more complex at every 3-power milestone.
     ctx.beginPath();
     ctx.moveTo(0, -size);
     ctx.lineTo(-size * 0.48, size * 0.30);
@@ -135,56 +130,62 @@
       ctx.stroke();
     }
 
-    makeWeaponDirections(layout).forEach(d => {
-      let bx = 0, by = 0;
-      if (d.role === 'front') {
-        bx = d.barrelX || 0;
-        by = -size * 0.56;
-      } else if (d.role === 'rear') {
-        bx = d.barrelX || 0;
-        by = size * 0.56;
-      } else {
-        bx = d.x * (size * 0.72 + d.offset);
-        by = size * 0.10;
-      }
-      const len = d.role === 'side' ? size * 0.64 : size * 0.58;
-      drawBarrel(bx, by, d.x, d.y, len, S(2.0));
+    // Draw the weapon pattern from the same slots used for firing.
+    weaponSlots(layout).forEach(s => {
+      drawBarrel(s.x, s.y, s.dx, s.dy, s.role === 'side' ? size * 0.64 : size * 0.58, S(2));
     });
     ctx.restore();
   };
 
-  // Visual layout and actual firing layout are identical.
-  // Every local direction and offset is rotated by the SAME ship angle.
+  // IMPORTANT: bypass the old Bullet constructor because it converted
+  // vy === 0 into a positive vertical speed. That was the source of the
+  // incorrect side-shot orientation.
+  addShot = function addShotV5(x, y, vx, vy, damage) {
+    const speed = S(powerTable[Math.min(power, powerTable.length - 1)].speed);
+    const length = Math.hypot(vx, vy) || 1;
+    const nx = vx / length;
+    const ny = vy / length;
+    const bullet = {
+      x,
+      y,
+      vx: nx * speed,
+      vy: ny * speed,
+      r: S(damage > 1 ? 4.6 : 3.4),
+      life: Math.ceil((Math.hypot(width, height) + Math.max(width, height)) / speed) + 30,
+      damage,
+      update(f) {
+        this.x += this.vx * f;
+        this.y += this.vy * f;
+        this.life--;
+      },
+      draw() {
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2);
+        ctx.fillStyle = '#fff';
+        ctx.fill();
+      },
+      b() { return { x: this.x, y: this.y, r: this.r }; }
+    };
+    bullets.push(bullet);
+  };
+
+  // Fire only the exact directions specified by the progression schema.
+  // No spread, no angle offsets, no gyro transformation.
   shoot = function shootV5(now) {
-    const p = powerTable[power];
+    const p = powerTable[Math.min(power, powerTable.length - 1)];
     if (now - lastFire < p.cooldown) return;
     lastFire = now;
 
     const layout = layoutForPower();
-    const dirs = makeWeaponDirections(layout);
-    const damage = playerDamage();
-    const angle = Number.isFinite(player.angle) ? player.angle : 0;
+    const slots = weaponSlots(layout);
+    const damage = 1 + Math.floor(power / 8);
 
-    dirs.forEach(d => {
-      let ox = 0, oy = 0;
-      if (d.role === 'front') {
-        ox = d.barrelX || 0;
-        oy = -player.size * 0.72;
-      } else if (d.role === 'rear') {
-        ox = d.barrelX || 0;
-        oy = player.size * 0.65;
-      } else {
-        ox = d.x * player.size * 0.85;
-        oy = player.size * 0.10;
-      }
-
-      const offset = toWorld(ox, oy, angle);
-      const direction = toWorld(d.x, d.y, angle);
+    slots.forEach(s => {
       addShot(
-        player.x + offset.x,
-        player.y + offset.y,
-        direction.x,
-        direction.y,
+        player.x + s.x,
+        player.y + s.y,
+        s.dx,
+        s.dy,
         damage
       );
     });

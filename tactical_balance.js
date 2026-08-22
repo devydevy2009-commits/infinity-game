@@ -15,7 +15,6 @@
   const originalEnemyUpdate = Enemy.prototype.update;
   const originalEnemyDraw = Enemy.prototype.draw;
   const originalSpawn = spawn;
-  const originalMakeFormation = makeFormation;
   const originalPowerupDraw = Powerup.prototype.draw;
 
   function difficultyHealthBonus(kind) {

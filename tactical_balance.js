@@ -14,6 +14,7 @@
   const FORMATION_ENTRY_Y = -46;
   const FORMATION_SPEED = 1.05;
 
+  const formationAnchors = new Map();
   const basePlayerUpdate = Player.prototype.update;
   const baseHunterUpdate = Enemy.prototype.updateHunter;
   const baseEnemyUpdate = Enemy.prototype.update;
@@ -73,7 +74,6 @@
     const px = this.x, py = this.y;
     baseEnemyUpdate.call(this, f);
     ensureScaledHealth(this);
-
     if (controlled) {
       this.x = px; this.y = py; this.vx = 0; this.vy = 0;
     } else clampEnemyVelocity(this);
@@ -185,16 +185,13 @@
   window.updateFormations = function (f) {
     const activeIds = new Set();
     for (const enemy of enemies) if (enemy.formationId && enemy.formAnchor) activeIds.add(enemy.formationId);
-
     for (const [id, anchor] of formationAnchors) {
       if (!activeIds.has(id)) { formationAnchors.delete(id); continue; }
       anchor.y += anchor.vy * f;
       anchor.vy = Math.max(S(0.72), anchor.vy * Math.pow(0.996, f));
-
       const members = enemies.filter(enemy => enemy.formationId === id && enemy.formAnchor === anchor);
       const maxOffsetX = members.reduce((m, enemy) => Math.max(m, Math.abs(enemy.formOffset?.x || 0)), 0);
       anchor.x = clamp(anchor.x, maxOffsetX + S(FORMATION_MARGIN), width - maxOffsetX - S(FORMATION_MARGIN));
-
       for (const enemy of members) {
         enemy.x = anchor.x + (enemy.formOffset?.x || 0);
         enemy.y = anchor.y + (enemy.formOffset?.y || 0);
@@ -240,6 +237,6 @@
     window.setTarget = function (e) { baseSetTarget(e); if (e.pointerType === 'touch') targetY = e.clientY - S(TOUCH_AHEAD); };
   }
   if (typeof baseResetGame === 'function') {
-    window.resetGame = function () { baseResetGame(); };
+    window.resetGame = function () { formationAnchors.clear(); baseResetGame(); };
   }
 })();

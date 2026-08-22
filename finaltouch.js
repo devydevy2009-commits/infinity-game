@@ -1,4 +1,5 @@
-// Final gameplay polish: gyro-oriented firing and evolving player ship.
+// Final gameplay polish: gyro-oriented player ship and evolving hull.
+// Player firing is intentionally owned only by gameplay_v6.js.
 (() => {
   let collectedPowerups = 0;
   let lastPowerLevel = 0;
@@ -12,7 +13,6 @@
     if (player) player.angle = 0;
   };
 
-  // Detect each newly collected power level without touching the collision logic.
   update = function updateWithPowerupCounter() {
     const before = power;
     originalUpdate();
@@ -34,15 +34,12 @@
     ctx.rotate(angle);
     ctx.strokeStyle = flash ? '#ff3d3d' : '#fff';
     ctx.lineWidth = S(2.5);
-
-    // Stage 0: classic triangle. Every 5 collected powerups adds structure and a little size.
     ctx.beginPath();
     ctx.moveTo(0, -size);
     ctx.lineTo(-size * 0.72, size * 0.72);
     ctx.lineTo(size * 0.72, size * 0.72);
     ctx.closePath();
     ctx.stroke();
-
     if (stage >= 1) {
       ctx.beginPath();
       ctx.moveTo(0, -size * 0.48);
@@ -75,41 +72,5 @@
       ctx.stroke();
     }
     ctx.restore();
-  };
-
-  // All shots originate from the ship's nose and follow its current gyro orientation.
-  shoot = function shootOriented(now) {
-    const p = powerTable[power];
-    if (now - lastFire < p.cooldown) return;
-    lastFire = now;
-    const damage = 1 + Math.floor(power / 8);
-    const angle = Number.isFinite(player.angle) ? player.angle : 0;
-    const dirX = Math.sin(angle);
-    const dirY = -Math.cos(angle);
-    const sideX = Math.cos(angle);
-    const sideY = Math.sin(angle);
-
-    const fire = (dx, dy, ox = 0, oy = 0) => {
-      addShot(player.x + ox, player.y + oy, dx, dy, damage);
-    };
-
-    fire(dirX, dirY, dirX * player.size, dirY * player.size);
-    if (p.side) {
-      fire(sideX, sideY);
-      fire(-sideX, -sideY);
-    }
-    if (p.back) fire(-dirX, -dirY);
-    if (p.wide) {
-      const a = angle - 0.22;
-      const b = angle + 0.22;
-      fire(Math.sin(a), -Math.cos(a), Math.sin(a) * player.size, -Math.cos(a) * player.size);
-      fire(Math.sin(b), -Math.cos(b), Math.sin(b) * player.size, -Math.cos(b) * player.size);
-    }
-    if (p.quad) {
-      const a = angle - 0.42;
-      const b = angle + 0.42;
-      fire(Math.sin(a), -Math.cos(a));
-      fire(Math.sin(b), -Math.cos(b));
-    }
   };
 })();

@@ -1,7 +1,8 @@
 // ============================================================
 //  INFINITY — game.js
-//  Versione aggiornata: ondate, ghost, difficoltà più rapida,
-//  slow più lungo, navigazione corretta
+//  Core game loop. Weapon firing is intentionally routed through
+//  globalThis.shoot so later gameplay layers cannot accidentally
+//  capture an older shoot() implementation.
 // ============================================================
 
 const canvas = document.getElementById('gameCanvas');
@@ -171,7 +172,16 @@ class Powerup {
 }
 
 class Bullet {
-  constructor(x, y, vx = 0, vy = -1, damage = 1) { this.x = x; this.y = y; this.vx = vx; this.vy = vy < 0 ? -S(powerTable[power].speed) : S(powerTable[power].speed); this.r = S(damage > 1 ? 4.6 : 3.4); this.life = 125; this.damage = damage; }
+  constructor(x, y, vx = 0, vy = -1, damage = 1) {
+    this.x = x; this.y = y;
+    const speed = S(powerTable[Math.min(Math.max(power, 0), powerTable.length - 1)].speed);
+    const len = Math.hypot(vx, vy) || 1;
+    this.vx = (vx / len) * speed;
+    this.vy = (vy / len) * speed;
+    this.r = S(damage > 1 ? 4.6 : 3.4);
+    this.life = 1000;
+    this.damage = damage;
+  }
   update(f) { this.x += this.vx * f; this.y += this.vy * f; this.life--; }
   draw() { ctx.beginPath(); ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2); ctx.fillStyle = '#fff'; ctx.fill(); }
   b() { return { x: this.x, y: this.y, r: this.r }; }
@@ -247,17 +257,15 @@ function spawn() {
 }
 
 function addShot(x, y, vx, vy, damage) { bullets.push(new Bullet(x, y, vx, vy, damage)); }
+
+// Canonical firing entry point. Weapon geometry is supplied by the final
+// weapon layer, but the core loop always resolves the current global function.
 function shoot(now) {
-  const p = powerTable[power];
-  if (now - lastFire < p.cooldown) return;
-  lastFire = now;
-  const damage = 1 + Math.floor(power / 8);
-  addShot(player.x, player.y - player.size, 0, -1, damage);
-  if (p.side) { addShot(player.x, player.y, -S(p.speed), 0, damage); addShot(player.x, player.y, S(p.speed), 0, damage); }
-  if (p.back) addShot(player.x, player.y, 0, 1, damage);
-  if (p.wide) { addShot(player.x, player.y - player.size, -S(4.4), -1, damage); addShot(player.x, player.y - player.size, S(4.4), -1, damage); }
-  if (p.quad) { addShot(player.x, player.y, -S(4.4), -1, damage); addShot(player.x, player.y, S(4.4), -1, damage); }
+  if (typeof globalThis.InfinityFire === 'function') globalThis.InfinityFire(now);
 }
+
+globalThis.shoot = shoot;
+globalThis.addShot = addShot;
 
 function damage() {
   if (Date.now() < invulnerableUntil) return;
@@ -315,7 +323,7 @@ function update() {
   const f = Date.now() < slowUntil ? 0.32 : 1;
   const now = Date.now();
   player.update(targetX, targetY);
-  shoot(now);
+  globalThis.shoot(now);
   enemies.forEach(x => x.update(f));
   powerups.forEach(x => x.update(f));
   bullets.forEach(x => x.update(f));
@@ -323,8 +331,9 @@ function update() {
   particles.forEach(x => x.update(f));
   enemies = enemies.filter(x => x.x > -S(100) && x.x < width + S(100) && x.y > -S(100) && x.y < height + S(100));
   powerups = powerups.filter(x => x.y < height + S(50));
-  bullets = bullets.filter(x => x.life > 0 && x.y > -S(40) && x.y < height + S(40));
-  enemyBullets = enemyBullets.filter(x => x.life > 0 && x.y < height + S(40));
+  // Do not filter by Y alone: side and rear weapons travel horizontally.
+  bullets = bullets.filter(x => x.life > 0 && x.x > -S(100) && x.x < width + S(100) && x.y > -S(100) && x.y < height + S(100));
+  enemyBullets = enemyBullets.filter(x => x.life > 0 && x.x > -S(100) && x.x < width + S(100) && x.y < height + S(100));
   particles = particles.filter(x => x.life > 0);
   spawn();
   collisions();

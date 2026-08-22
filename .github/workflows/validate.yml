@@ -1,0 +1,15 @@
+name: Validate Infinity
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check game.js syntax
+        run: node --check game.js
+      - name: Verify consolidated script loading
+        run: test "$(grep -c 'script src=\"game.js\"' index.html)" -eq 1 && ! grep -q 'bugfixes.js\|enhancements.js\|finaltouch.js\|gameplay_v2.js\|gameplay_v6.js\|gameplay_v7.js' index.html

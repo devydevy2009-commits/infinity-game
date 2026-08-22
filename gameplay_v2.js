@@ -1,5 +1,5 @@
 // Infinity gameplay v2: deterministic pacing, safer lower third, powerup risk window,
-// smoother gyro, and death snapshot / "Take a picture" mode.
+// and death snapshot / "Take a picture" mode.
 (() => {
   const SAFE_BOTTOM_START = 0.68;
   const SAFE_BOTTOM_FORCE = 0.085;
@@ -7,7 +7,6 @@
   const POWERUP_INTERVAL = 22000;
   const WAVE_INTERVAL = 10500;
   const NORMAL_SPAWN_INTERVAL = 1150;
-  const GYRO_SMOOTHING = 0.12;
   const SCORE_VARIANCE_REDUCTION = 0.65;
 
   let nextPowerupAt = 0;
@@ -15,8 +14,6 @@
   let nextWaveAt = 0;
   let powerupPressure = false;
   let deathSnapshot = null;
-  let smoothedGyro = 0;
-  let gyroSampled = false;
 
   const originalReset = resetGame;
   const originalUpdate = update;
@@ -123,8 +120,6 @@
     nextWaveAt = 0;
     powerupPressure = false;
     deathSnapshot = null;
-    smoothedGyro = 0;
-    gyroSampled = false;
   };
 
   spawn = spawnDeterministic;
@@ -176,8 +171,6 @@
     if (pressured) restorePowerupPressure();
     if (powerups.length === 0) powerupPressure = false;
 
-    // Compress score differences caused by enemy-type randomness while keeping all
-    // rewards meaningful. Time/difficulty still drive the main progression.
     const delta = score - scoreBefore;
     if (delta > 0 && Number.isFinite(delta)) {
       score = scoreBefore + Math.max(1, Math.round(delta * SCORE_VARIANCE_REDUCTION));
@@ -255,19 +248,6 @@
     $('deathShotStats').textContent = `Score ${deathSnapshot.score} · Time ${deathSnapshot.time}`;
     $('deathSnapshotOverlay').classList.remove('hidden');
   }
-
-  window.addEventListener('deviceorientation', e => {
-    if (!running || paused || !player || !gyroEnabled) return;
-    const gamma = Math.max(-45, Math.min(45, Number(e.gamma) || 0));
-    const target = (gamma / 45) * 0.82;
-    if (!gyroSampled) {
-      smoothedGyro = target;
-      gyroSampled = true;
-    } else {
-      smoothedGyro += (target - smoothedGyro) * GYRO_SMOOTHING;
-    }
-    player.angle = smoothedGyro;
-  }, { passive: true });
 
   ensureDeathSnapshotUi();
 })();

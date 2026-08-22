@@ -5,22 +5,22 @@
   function layoutForPower() {
     const stage = Math.floor(Math.max(0, power) / 3);
 
-    // Progression repeats a clear three-step cycle:
-    // P0: 1 front
-    // P3: 2 front
-    // P6: 2 front + 2 sides
-    // P9: 2 front + 2 sides + 2 rear
-    // P12: 3 front + 2 sides + 2 rear
-    // P15: 3 front + 4 sides + 2 rear
-    // P18: 3 front + 4 sides + 4 rear
-    // P21: 4 front + 4 sides + 4 rear ...
+    // Coherent progression:
+    // P0  = 1 front
+    // P3  = 2 front
+    // P6  = 2 front + 2 sides
+    // P9  = 2 front + 2 sides + 2 rear
+    // P12 = 3 front + 2 sides + 2 rear
+    // P15 = 3 front + 3 sides + 2 rear
+    // P18 = 3 front + 3 sides + 3 rear
+    // P21 = 4 front + 3 sides + 3 rear ...
+    const levelInCycle = stage % 3;
     const cycle = Math.floor(stage / 3);
-    const phase = stage % 3;
 
     return {
-      front: 1 + cycle + (phase >= 1 ? 1 : 0),
-      side: cycle * 2 + (phase >= 2 ? 2 : 0),
-      rear: cycle * 2
+      front: 1 + cycle + (levelInCycle >= 1 ? 1 : 0),
+      side: (cycle > 0 ? cycle : 0) + (levelInCycle >= 2 ? 1 : 0),
+      rear: cycle
     };
   }
 
@@ -41,11 +41,14 @@
       });
     }
 
+    // Keep left/right symmetry: a side count > 1 is distributed alternately.
     for (let i = 0; i < l.side; i++) {
-      const pair = Math.floor(i / 2);
-      const side = i % 2 === 0 ? -1 : 1;
+      const centerIndex = (l.side - 1) / 2;
+      const lateralIndex = i - centerIndex;
+      const side = lateralIndex === 0 ? (i % 2 === 0 ? -1 : 1) : Math.sign(lateralIndex);
+      const distance = S(13) + Math.abs(lateralIndex) * sideGap;
       out.push({
-        x: side * (S(13) + pair * sideGap),
+        x: side * distance,
         y: 0,
         dx: side,
         dy: 0,

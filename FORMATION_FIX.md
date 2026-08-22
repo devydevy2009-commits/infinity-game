@@ -1,0 +1,1 @@
+Formation stability fix is implemented in tactical_balance.js.

@@ -1,1 +1,1 @@
-// restore
+// restore validated weapon system

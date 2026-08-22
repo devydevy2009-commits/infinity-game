@@ -1,0 +1,1 @@
+Formation stability fix: formations now use a persistent shared anchor instead of promoting the first surviving member to anchor. This prevents whole formations from jumping when a member is destroyed. The anchor is clamped horizontally and continues controlled vertical entry.

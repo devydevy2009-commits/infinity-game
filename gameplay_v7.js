@@ -1,9 +1,8 @@
 // Infinity gameplay v7 — coherent formations, consistent powerups, and scaled powerup pressure.
-// Loaded after v6. This layer owns spawning/group movement only; v6 remains the
-// single authoritative player weapon system.
+// Loaded after v6. v6 remains the single authoritative player weapon system.
 (() => {
   const BASE_FORMATION_INTERVAL = 14000;
-  const TEST_POWERUP_INTERVAL = 7500; // ~3x the previous 22s cadence for testing.
+  const POWERUP_TEST_INTERVAL = 7500; // ~3x the previous 22s cadence for testing.
   const FIRST_POWERUP_DELAY = 5000;
   const FORMATION_UNLOCK_TIER = 1;
   const ESCORT_UNLOCK_TIER = 4;
@@ -38,11 +37,14 @@
     p.phase = 0;
     p._gameplayV7 = true;
     p._protectedGroupId = null;
-    p.update = function() {
-      // Position is controlled by the v7 group system.
-      this.phase += 0.04;
-      this.rot += 0.025;
+    p._solo = false;
+
+    p.update = function(f) {
+      if (this._solo) this.y += this.vy * f;
+      this.phase += 0.04 * f;
+      this.rot += 0.025 * f;
     };
+
     p.draw = function() {
       const pulse = 1 + Math.sin(this.phase) * 0.06;
       ctx.save();
@@ -60,12 +62,12 @@
       ctx.stroke();
       ctx.restore();
     };
+
     p.b = function() { return { x: this.x, y: this.y, r: this.size * 0.72 }; };
     return p;
   }
 
   function formationShape(count) {
-    // Compact 1-2-3-4 rows. Offsets are fixed relative to one moving anchor.
     const offsets = [];
     let row = 1;
     while (offsets.length < count) {
@@ -94,7 +96,6 @@
     const group = {
       id: ++formationId,
       anchor,
-      offsets,
       members: [],
       kind: 'wave'
     };
@@ -162,6 +163,7 @@
   function spawnSoloPowerup() {
     const x = width * (0.14 + Math.random() * 0.72);
     const p = makeConsistentPowerup(x, -S(28));
+    p._solo = true;
     p.vy = S(1.35 + Math.min(tier(), 15) * 0.025);
     powerups.push(p);
   }
@@ -180,11 +182,10 @@
 
     if (!nextPowerupAt) nextPowerupAt = now + FIRST_POWERUP_DELAY;
     if (now >= nextPowerupAt && powerups.length === 0) {
-      // Every third powerup becomes a protected formation once the game is established.
       const useEscort = t >= ESCORT_UNLOCK_TIER && (protectedPowerupCount++ % 3 === 2);
       if (useEscort) createProtectedPowerup();
       else spawnSoloPowerup();
-      nextPowerupAt += TEST_POWERUP_INTERVAL;
+      nextPowerupAt += POWERUP_TEST_INTERVAL;
     }
 
     if (enemies.length < cap && Math.random() < 0.018 + t * 0.002) {
@@ -193,11 +194,8 @@
   }
 
   function updateFormationGroup(group, factor) {
-    if (!group) return;
-    const speedFactor = factor;
-    group.anchor.x += group.anchor.vx * speedFactor;
-    group.anchor.y += group.anchor.vy * speedFactor;
-
+    group.anchor.x += group.anchor.vx * factor;
+    group.anchor.y += group.anchor.vy * factor;
     group.members = group.members.filter(e => enemies.includes(e));
     group.members.forEach(e => {
       const o = e._formationOffset || { x: 0, y: 0 };
@@ -209,7 +207,6 @@
   }
 
   function updateProtectedPowerupGroup(group, factor) {
-    if (!group) return;
     group.anchor.x += group.anchor.vx * factor;
     group.anchor.y += group.anchor.vy * factor;
 
@@ -235,7 +232,6 @@
       group.members = group.members.filter(e => enemies.includes(e));
       if (powerupAlive) return true;
 
-      // Once the powerup is collected, escorts leave formation and continue normally.
       group.members.forEach(e => {
         e._protectedPowerupId = null;
         e._formationGroupId = null;
@@ -258,18 +254,21 @@
     const multiplier = pressureMultiplier();
     if (powerups.length === 0) return null;
     const changed = [];
+
     for (const e of enemies) {
       if (!e || e._formationGroupId) continue;
       e.vx *= multiplier;
       e.vy *= multiplier;
       changed.push(e);
     }
+
     for (const b of enemyBullets) {
       if (!b) continue;
       if (Number.isFinite(b.vx)) b.vx *= multiplier;
       b.vy *= multiplier;
       b._v7PressureMultiplier = multiplier;
     }
+
     return { changed, multiplier };
   }
 
@@ -303,14 +302,12 @@
 
   update = function updateV7() {
     const factor = Date.now() < slowUntil ? 0.32 : 1;
-
     const pressure = applyScaledPowerupPressure();
     const formationMembers = [];
+
     formationGroups.forEach(group => group.members.forEach(e => formationMembers.push(e)));
     protectedPowerupGroups.forEach(group => group.members.forEach(e => formationMembers.push(e)));
 
-    // Lock group-member velocities during the base update so AI steering cannot
-    // break the formation. We restore the group trajectory after baseUpdate.
     const locked = new Map();
     formationMembers.forEach(e => {
       if (!enemies.includes(e)) return;

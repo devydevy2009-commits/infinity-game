@@ -1,0 +1,28 @@
+name: Build INFINITE for itch.io
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - release/infinite-v1
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Package browser build
+        run: |
+          mkdir -p dist
+          cp index.html game.js tactical_balance.js encounter_system.js styles.css manifest.webmanifest LICENSE.txt dist/
+          cd dist
+          zip -9 -r ../INFINITE-Web-v1.0.zip .
+
+      - name: Upload itch.io build
+        uses: actions/upload-artifact@v4
+        with:
+          name: INFINITE-Web-v1.0
+          path: INFINITE-Web-v1.0.zip
+          if-no-files-found: error

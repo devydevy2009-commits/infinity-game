@@ -16,30 +16,12 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
-body {
-  color: #fff;
-}
+body { color: #fff; }
+button, input { font: inherit; }
+button { cursor: pointer; }
 
-button,
-input {
-  font: inherit;
-}
-
-button {
-  cursor: pointer;
-}
-
-#gameCanvas {
-  display: block;
-  width: 100%;
-  height: 100%;
-}
-
-#ui {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-}
+#gameCanvas { display: block; width: 100%; height: 100%; }
+#ui { position: absolute; inset: 0; pointer-events: none; }
 
 #score,
 #lives,
@@ -52,273 +34,96 @@ button {
   text-shadow: 0 0 4px #fff;
   z-index: 2;
 }
-
-#score {
-  top: max(16px, env(safe-area-inset-top));
-  left: max(16px, env(safe-area-inset-left));
-}
-
-#lives {
-  top: max(16px, env(safe-area-inset-top));
-  right: max(16px, env(safe-area-inset-right));
-}
-
-#timer {
-  top: calc(max(16px, env(safe-area-inset-top)) + 30px);
-  left: max(16px, env(safe-area-inset-left));
-}
-
-#power {
-  top: calc(max(16px, env(safe-area-inset-top)) + 60px);
-  left: max(16px, env(safe-area-inset-left));
-  color: #59bfff;
-}
+#score { top: max(16px, env(safe-area-inset-top)); left: max(16px, env(safe-area-inset-left)); }
+#lives { top: max(16px, env(safe-area-inset-top)); right: max(16px, env(safe-area-inset-right)); }
+#timer { top: calc(max(16px, env(safe-area-inset-top)) + 30px); left: max(16px, env(safe-area-inset-left)); }
+#power { top: calc(max(16px, env(safe-area-inset-top)) + 60px); left: max(16px, env(safe-area-inset-left)); color: #59bfff; }
 
 #startBtn {
   position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  min-width: 148px;
-  min-height: 54px;
-  padding: 16px 32px;
-  font-size: 20px;
-  background: #fff;
-  color: #000;
-  border: 0;
-  border-radius: 10px;
-  pointer-events: auto;
-  font-weight: 700;
+  top: 50%; left: 50%; transform: translate(-50%, -50%);
+  min-width: 148px; min-height: 54px; padding: 16px 32px;
+  font-size: 20px; background: #fff; color: #000; border: 0;
+  border-radius: 10px; pointer-events: auto; font-weight: 700;
   box-shadow: 0 8px 24px rgba(255, 255, 255, 0.18);
 }
 
 #settingsBtn {
   position: absolute;
-  top: max(10px, env(safe-area-inset-top));
-  left: 50%;
-  transform: translateX(-50%);
-  width: 52px;
-  height: 52px;
-  padding: 0;
-  background: transparent;
-  color: #fff;
-  border: 0;
-  border-radius: 50%;
-  pointer-events: auto;
-  font-size: 31px;
-  line-height: 1;
+  top: max(10px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%);
+  width: 52px; height: 52px; padding: 0; background: transparent; color: #fff;
+  border: 0; border-radius: 50%; pointer-events: auto; font-size: 31px; line-height: 1;
   text-shadow: 0 0 6px rgba(255, 255, 255, 0.75);
 }
 
 #settingsBtn:active,
 #startBtn:active,
 .menu-content button:active,
-.pause-content button:active {
-  transform: scale(0.98);
-}
+.pause-content button:active { transform: scale(0.98); }
 
 #settingsMenu,
 #pauseOverlay,
 #iosInstallHelp,
 #gameOverMenu,
 #scoreboardMenu {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
   pointer-events: auto;
-  padding:
-    max(16px, env(safe-area-inset-top))
-    max(16px, env(safe-area-inset-right))
-    max(16px, env(safe-area-inset-bottom))
-    max(16px, env(safe-area-inset-left));
+  padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
 }
 
 #settingsMenu,
 #iosInstallHelp,
 #gameOverMenu,
-#scoreboardMenu {
-  background: rgba(0, 0, 0, 0.86);
-  z-index: 100;
-}
-
-#pauseOverlay {
-  background: rgba(0, 0, 0, 0.72);
-  z-index: 50;
-}
-
-.hidden {
-  display: none !important;
-}
+#scoreboardMenu { background: rgba(0, 0, 0, 0.86); z-index: 100; }
+#pauseOverlay { background: rgba(0, 0, 0, 0.72); z-index: 50; }
+.hidden { display: none !important; }
 
 .menu-content,
 .pause-content {
-  width: min(88vw, 380px);
-  max-height: min(88vh, 720px);
-  overflow: auto;
-  background: #171717;
-  border: 1px solid rgba(255, 255, 255, 0.24);
-  border-radius: 18px;
-  padding: 24px;
-  text-align: center;
+  width: min(88vw, 380px); max-height: min(88vh, 720px); overflow: auto;
+  background: #171717; border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 18px; padding: 24px; text-align: center;
   box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
 }
-
 .menu-content h2,
-.pause-content h2 {
-  color: #fff;
-  margin-bottom: 18px;
-}
-
-.pause-content h2 {
-  font-size: 44px;
-  text-shadow: 0 0 10px #fff;
-}
-
+.pause-content h2 { color: #fff; margin-bottom: 18px; }
+.pause-content h2 { font-size: 44px; text-shadow: 0 0 10px #fff; }
 .menu-content p,
-.pause-content p {
-  color: #fff;
-  margin: 0 0 16px;
-}
-
-.menu-note {
-  color: rgba(255, 255, 255, 0.72) !important;
-  font-size: 14px;
-  line-height: 1.45;
-}
-
-.hardmode-hint {
-  color: #ffd700 !important;
-  font-size: 13px;
-  line-height: 1.4;
-  margin-top: -2px;
-}
+.pause-content p { color: #fff; margin: 0 0 16px; }
+.menu-note { color: rgba(255, 255, 255, 0.72) !important; font-size: 14px; line-height: 1.45; }
+.hardmode-hint { color: #ffd700 !important; font-size: 13px; line-height: 1.4; margin-top: -2px; }
 
 .menu-content button,
 .pause-content button {
-  display: block;
-  width: 100%;
-  min-height: 48px;
-  padding: 13px 18px;
-  margin: 8px 0;
-  font-size: 17px;
-  background: #fff;
-  color: #000;
-  border: 0;
-  border-radius: 9px;
-  font-weight: 700;
+  display: block; width: 100%; min-height: 48px; padding: 13px 18px; margin: 8px 0;
+  font-size: 17px; background: #fff; color: #000; border: 0; border-radius: 9px; font-weight: 700;
 }
 
-#gyroToggleBtn {
-  background: #111;
-  color: #ffd700;
-  border: 1px solid rgba(255, 215, 0, 0.35);
-}
+#gyroToggleBtn { background: #111; color: #ffd700; border: 1px solid rgba(255, 215, 0, 0.35); }
+#gyroToggleBtn:disabled { opacity: 0.58; cursor: default; }
+.menu-copyright { color: rgba(255, 255, 255, 0.42) !important; font-size: 11px; margin-top: 18px !important; line-height: 1.4; }
 
-.pause-content {
-  text-align: center;
-}
+.pause-content { text-align: center; }
+.install-help p { text-align: left; font-size: 17px; line-height: 1.45; }
+.install-help strong { color: #59bfff; }
 
-.install-help p {
-  text-align: left;
-  font-size: 17px;
-  line-height: 1.45;
-}
-
-.install-help strong {
-  color: #59bfff;
-}
-
-#playerName {
-  width: 100%;
-  min-height: 48px;
-  padding: 13px;
-  margin: 0 0 8px;
-  border: 1px solid #555;
-  border-radius: 9px;
-  background: #0a0a0a;
-  color: #fff;
-  font-size: 17px;
-  text-align: center;
-}
-
-#playerName:focus {
-  outline: 2px solid #59bfff;
-  outline-offset: 2px;
-}
-
-#scoreList {
-  padding-left: 30px;
-  color: #fff;
-  text-align: left;
-  margin: 0 0 18px;
-}
-
-#scoreList li {
-  padding: 9px 0;
-  border-bottom: 1px solid #333;
-}
-
-.score-value {
-  float: right;
-  color: #59bfff;
-}
-
-.menu-back {
-  background: #333 !important;
-  color: #fff !important;
-}
+#playerName { width: 100%; min-height: 48px; padding: 13px; margin: 0 0 8px; border: 1px solid #555; border-radius: 9px; background: #0a0a0a; color: #fff; font-size: 17px; text-align: center; }
+#playerName:focus { outline: 2px solid #59bfff; outline-offset: 2px; }
+#scoreList { padding-left: 30px; color: #fff; text-align: left; margin: 0 0 18px; }
+#scoreList li { padding: 9px 0; border-bottom: 1px solid #333; }
+.score-value { float: right; color: #59bfff; }
+.menu-back { background: #333 !important; color: #fff !important; }
 
 #hardModeNotice {
-  position: fixed;
-  left: 50%;
-  bottom: calc(max(16px, env(safe-area-inset-bottom)) + 24px);
-  transform: translateX(-50%);
-  color: #ffd700;
-  font-size: 12px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  letter-spacing: 0.05em;
-  text-shadow: 0 0 6px rgba(255, 215, 0, 0.28);
-  pointer-events: none;
-  z-index: 120;
-  text-align: center;
+  position: fixed; left: 50%; bottom: calc(max(16px, env(safe-area-inset-bottom)) + 24px); transform: translateX(-50%);
+  color: #ffd700; font-size: 12px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  letter-spacing: 0.05em; text-shadow: 0 0 6px rgba(255, 215, 0, 0.28); pointer-events: none; z-index: 120; text-align: center;
 }
-
-#gyroLabel {
-  position: fixed;
-  top: calc(max(8px, env(safe-area-inset-top)) + 54px);
-  right: max(12px, env(safe-area-inset-right));
-  color: #ffd700;
-  font-size: 11px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  letter-spacing: 0.05em;
-  pointer-events: none;
-  z-index: 120;
-}
+#gyroLabel { position: fixed; top: calc(max(8px, env(safe-area-inset-top)) + 54px); right: max(12px, env(safe-area-inset-right)); color: #ffd700; font-size: 11px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; letter-spacing: 0.05em; pointer-events: none; z-index: 120; }
 
 @media (max-width: 420px) {
-  #score,
-  #lives,
-  #timer,
-  #power {
-    font-size: 16px;
-  }
-
-  .menu-content,
-  .pause-content {
-    width: min(92vw, 380px);
-    padding: 20px;
-    border-radius: 16px;
-  }
-
-  .menu-content button,
-  .pause-content button,
-  #playerName {
-    font-size: 16px;
-  }
-
-  .pause-content h2 {
-    font-size: 36px;
-  }
+  #score, #lives, #timer, #power { font-size: 16px; }
+  .menu-content, .pause-content { width: min(92vw, 380px); padding: 20px; border-radius: 16px; }
+  .menu-content button, .pause-content button, #playerName { font-size: 16px; }
+  .pause-content h2 { font-size: 36px; }
 }

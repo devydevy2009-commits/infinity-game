@@ -16,7 +16,7 @@ jobs:
       - name: Package browser build
         run: |
           mkdir -p dist
-          cp index.html game.js tactical_balance.js encounter_system.js styles.css manifest.webmanifest LICENSE.txt dist/
+          cp index.html game.js tactical_balance.js release_balance.js encounter_system.js release_ui2.js styles.css manifest.webmanifest LICENSE.txt dist/
           cd dist
           zip -9 -r ../INFINITE-Web-v1.0.zip .
 

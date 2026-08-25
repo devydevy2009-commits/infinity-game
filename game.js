@@ -31,13 +31,12 @@ let startTime = 0, finalElapsed = 0, timerId = 0, lastFire = 0;
 let pausedAt = 0, pausedTotal = 0;
 let targetX, targetY, inputType = null;
 let slowUntil = 0, invulnerableUntil = 0;
-let gyroEnabled = false, gyroListenerAttached = false;
-let hardMode = false;
-let deferredPrompt = null;
 let combo = 0, lastKillAt = 0;
 let nextWaveAt = 0, nextPowerupAt = 0;
 let deathSnapshot = null;
 let frameStamp = 0;
+let sessionSaveAt = 0;
+let resumableSession = null;
 
 const TOUCH_AHEAD = 22;
 const MAX_POWER = 49;
@@ -56,16 +55,25 @@ const powerTable = Array.from({ length: 50 }, (_, i) => ({
 }));
 
 function resize() {
-  width = innerWidth;
-  height = innerHeight;
+  const oldWidth = width, oldHeight = height;
+  const viewport = window.visualViewport;
+  width = Math.max(1, Math.round(viewport ? viewport.width : innerWidth));
+  height = Math.max(1, Math.round(viewport ? viewport.height : innerHeight));
   canvas.width = width;
   canvas.height = height;
   cx = width / 2;
   cy = height / 2;
   scale = Math.max(0.78, Math.min(1.18, Math.min(width, height) / 390));
-  if (stars) createStars(true);
+  if (stars?.length && oldWidth && oldHeight) {
+    // Keep the field evenly distributed when mobile browser chrome settles.
+    for (const star of stars) {
+      star.x = clamp(star.x * width / oldWidth, 0, width);
+      star.y = clamp(star.y * height / oldHeight, -S(4), height);
+    }
+  }
 }
 addEventListener('resize', resize);
+window.visualViewport?.addEventListener('resize', resize);
 const S = n => n * scale;
 
 function secs() {
@@ -468,15 +476,14 @@ function registerKill(enemy) {
   lastKillAt = now;
   const comboMultiplier = Math.min(3, 1 + Math.floor(combo / 5) * 0.25);
   const evolutionMultiplier = 1 + Math.min(tier(), 12) * 0.06;
-  const hardMultiplier = hardMode ? 1.5 : 1;
-  score += Math.round(SCORE_BY_KIND[enemy.kind] * comboMultiplier * evolutionMultiplier * hardMultiplier);
+  score += Math.round(SCORE_BY_KIND[enemy.kind] * comboMultiplier * evolutionMultiplier);
   scoreEl.textContent = 'Score: ' + score;
 }
 
 function collectPowerup(p) {
   power = Math.min(MAX_POWER, power + 1);
   powerEl.textContent = 'Power: ' + power;
-  score += Math.round(250 * (hardMode ? 1.5 : 1));
+  score += 250;
   scoreEl.textContent = 'Score: ' + score;
   burst(p.x, p.y, '#69c4ff', 24);
 }
@@ -574,6 +581,31 @@ function resetGame() {
   $('takePictureBtn')?.classList.add('hidden');
 }
 
+function readSession() {
+  try {
+    const value = JSON.parse(sessionStorage.getItem('infiniteActiveSession') || 'null');
+    if (!value || typeof value !== 'object') return null;
+    return {
+      score: Math.max(0, Math.floor(Number(value.score) || 0)),
+      lives: clamp(Math.floor(Number(value.lives) || 3), 1, 3),
+      power: clamp(Math.floor(Number(value.power) || 0), 0, MAX_POWER),
+      elapsed: Math.max(0, Math.floor(Number(value.elapsed) || 0)),
+      savedAt: Number(value.savedAt) || 0
+    };
+  } catch { return null; }
+}
+function saveSession() {
+  if (!running || !player) return;
+  try { sessionStorage.setItem('infiniteActiveSession', JSON.stringify({ score, lives, power, elapsed: secs(), savedAt: Date.now() })); } catch {}
+}
+function clearSession() { try { sessionStorage.removeItem('infiniteActiveSession'); } catch {} resumableSession = null; }
+function refreshHud() {
+  scoreEl.textContent = 'Score: ' + score;
+  livesEl.textContent = 'Lives: ' + lives;
+  powerEl.textContent = 'Power: ' + power;
+  updateTimer();
+}
+
 function setGameVisible() {
   startBtn.style.display = 'none'; settingsBtn.style.display = 'block';
   settingsMenu.classList.add('hidden'); gameOverMenu.classList.add('hidden'); scoreboardMenu.classList.add('hidden'); pauseOverlay.classList.add('hidden');
@@ -598,12 +630,14 @@ function showLoading(stage, percent) {
 }
 function hideLoading() { $('loadingOverlay').classList.add('hidden'); }
 
-function startGame() {
+function startGame(resumeSaved = false) {
   if (starting) return;
   starting = true;
   running = false;
   clearInterval(timerId);
   resetGame();
+  const restored = resumeSaved ? resumableSession : null;
+  if (restored) { score = restored.score; lives = restored.lives; power = restored.power; }
   showLoading('Inizializzazione motore', 12);
   const steps = [
     ['Preparazione campo stellare', 32],
@@ -616,7 +650,8 @@ function startGame() {
   const advance = () => {
     if (index < steps.length) { showLoading(steps[index][0], steps[index][1]); index++; setTimeout(advance, 110); return; }
     hideLoading();
-    starting = false; running = true; paused = false; startTime = Date.now(); finalElapsed = 0; pausedAt = 0; pausedTotal = 0; lastFire = 0; setGameVisible();
+    starting = false; running = true; paused = false; startTime = Date.now() - (restored?.elapsed || 0) * 1000; finalElapsed = 0; pausedAt = 0; pausedTotal = 0; lastFire = 0; setGameVisible();
+    resumableSession = null; refreshHud();
     updateTimer(); clearInterval(timerId); timerId = setInterval(updateTimer, 1000); requestAnimationFrame(loop);
   };
   setTimeout(advance, 110);
@@ -625,6 +660,7 @@ function startGame() {
 function pauseGame() {
   if (!running || paused) return;
   paused = true; pausedAt = Date.now(); pauseOverlay.classList.remove('hidden'); settingsMenu.classList.add('hidden');
+  saveSession();
 }
 function resumeGame() {
   if (!running || !paused) return;
@@ -635,6 +671,7 @@ function gameOver() {
   if (!running) return;
   finalElapsed = secs(); running = false; paused = false; clearInterval(timerId);
   power = 0; powerEl.textContent = 'Power: 0';
+  clearSession();
   try { deathSnapshot = { image: canvas.toDataURL('image/png'), score, time: finalElapsed, date: Date.now() }; } catch { deathSnapshot = null; }
   finalScore.textContent = 'Score: ' + score + ' · Time: ' + timerEl.textContent.replace('Time: ', '');
   playerName.value = ''; saveScoreBox.classList.remove('hidden'); gameOverMenu.classList.remove('hidden'); settingsBtn.style.display = 'none';
@@ -677,8 +714,9 @@ function ensureDeathSnapshotUI() {
 
 function setTarget(e) {
   inputType = e.pointerType;
-  targetX = e.clientX;
-  targetY = e.clientY;
+  const rect = canvas.getBoundingClientRect();
+  targetX = (e.clientX - rect.left) * width / rect.width;
+  targetY = (e.clientY - rect.top) * height / rect.height;
   if (e.pointerType === 'touch') targetY -= S(TOUCH_AHEAD);
 }
 canvas.addEventListener('pointerdown', e => { if (e.pointerType === 'touch' || e.pointerType === 'pen' || e.pointerType === 'mouse') { if (e.pointerType !== 'mouse') e.preventDefault(); setTarget(e); } });
@@ -686,29 +724,26 @@ canvas.addEventListener('pointermove', e => { if (e.pointerType === 'touch' || e
 canvas.addEventListener('touchstart', e => e.preventDefault(), { passive: false });
 canvas.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
 
-function onOrientation(e) {
-  if (!gyroEnabled || !running || paused || !player) return;
-  const gamma = clamp(Number(e.gamma) || 0, -45, 45);
-  player.angle = (gamma / 45) * 0.95;
-}
-async function toggleGyro() {
-  if (!hardMode && typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') { try { await DeviceOrientationEvent.requestPermission(); } catch {} }
-  hardMode = !hardMode;
-  if (hardMode && !gyroListenerAttached && 'DeviceOrientationEvent' in window) { window.addEventListener('deviceorientation', onOrientation, { passive: true }); gyroListenerAttached = true; }
-  gyroEnabled = hardMode && 'DeviceOrientationEvent' in window;
-  $('gyroToggleBtn').textContent = hardMode ? (gyroEnabled ? '🌀 Giroscopio (Hard Mode): ON' : '🌀 Hard Mode: ON') : '🌀 Giroscopio (Hard Mode)';
-  $('gyroLabel').classList.toggle('hidden', !gyroEnabled);
-  const notice = $('hardModeNotice'); notice.textContent = hardMode ? '⚡ HARD MODE — +50% score' : 'HARD MODE OFF'; notice.classList.remove('hidden'); clearTimeout(toggleGyro.noticeTimer); toggleGyro.noticeTimer = setTimeout(() => notice.classList.add('hidden'), 1600);
-}
-
 function scoresBack() { scoreboardMenu.classList.add('hidden'); if (!running) gameOverMenu.classList.remove('hidden'); else settingsMenu.classList.remove('hidden'); }
-function forceRefresh() { if ('caches' in window) caches.keys().then(keys => Promise.all(keys.map(k => caches.delete(k)))).then(() => location.replace(location.pathname + '?update=' + Date.now())); else location.replace(location.pathname + '?update=' + Date.now()); }
+async function toggleFullscreen() {
+  try {
+    if (document.fullscreenElement) await document.exitFullscreen();
+    else await document.documentElement.requestFullscreen();
+  } catch {}
+}
+function syncFullscreenLabel() { const button = $('fullscreenBtn'); if (button) button.textContent = document.fullscreenElement ? 'Exit fullscreen' : 'Enter fullscreen'; }
 
-settingsBtn.onclick = () => { settingsMenu.classList.remove('hidden'); $('pauseBtn').classList.toggle('hidden', paused); $('resumeBtn').classList.toggle('hidden', !paused); if (paused) pauseOverlay.classList.add('hidden'); };
-$('newGameBtn').onclick = startGame;
-$('pauseBtn').onclick = pauseGame;
-$('resumeBtn').onclick = () => { settingsMenu.classList.add('hidden'); resumeGame(); };
-$('restartBtn').onclick = startGame;
+settingsBtn.onclick = () => {
+  if (running && !paused) pauseGame();
+  settingsMenu.classList.remove('hidden'); pauseOverlay.classList.add('hidden');
+  $('resumeBtn').classList.toggle('hidden', !(running && paused) && !resumableSession);
+  syncFullscreenLabel();
+};
+$('newGameBtn').onclick = () => { clearSession(); startGame(); };
+$('resumeBtn').onclick = () => {
+  settingsMenu.classList.add('hidden');
+  if (running && paused) resumeGame(); else if (resumableSession) startGame(true);
+};
 $('scoresBtn').onclick = () => { settingsMenu.classList.add('hidden'); renderScores(); scoreboardMenu.classList.remove('hidden'); };
 $('closeSettingsBtn').onclick = () => { settingsMenu.classList.add('hidden'); if (paused) pauseOverlay.classList.remove('hidden'); };
 $('restartFromGameOverBtn').onclick = startGame;
@@ -720,16 +755,16 @@ $('closeScoresBtn').onclick = scoresBack;
 $('resumeFromPauseBtn').onclick = resumeGame;
 $('restartFromPauseBtn').onclick = startGame;
 $('backFromPauseBtn').onclick = () => { pauseOverlay.classList.add('hidden'); settingsMenu.classList.remove('hidden'); };
-$('refreshBtn').onclick = forceRefresh;
-$('iosInstallBtn').onclick = () => { settingsMenu.classList.add('hidden'); $('iosInstallHelp').classList.remove('hidden'); };
-$('closeIosInstallHelpBtn').onclick = () => $('iosInstallHelp').classList.add('hidden');
-$('gyroToggleBtn').onclick = toggleGyro;
-startBtn.onclick = startGame;
-window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferredPrompt = e; $('installBtn').classList.remove('hidden'); });
-$('installBtn').onclick = async () => { if (!deferredPrompt) return; deferredPrompt.prompt(); await deferredPrompt.userChoice; deferredPrompt = null; $('installBtn').classList.add('hidden'); };
+$('fullscreenBtn').onclick = toggleFullscreen;
+document.addEventListener('fullscreenchange', syncFullscreenLabel);
+startBtn.onclick = () => { if (resumableSession) startGame(true); else startGame(); };
+document.addEventListener('visibilitychange', () => { if (document.hidden) { saveSession(); if (running && !paused) pauseGame(); } });
 
 ensureLoadingUI();
 ensureDeathSnapshotUI();
 resize();
 createStars();
 draw();
+resumableSession = readSession();
+if (resumableSession) startBtn.textContent = 'Resume mission';
+requestAnimationFrame(() => { resize(); draw(); });

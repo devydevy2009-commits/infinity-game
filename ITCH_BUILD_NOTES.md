@@ -20,3 +20,6 @@ Copyright © 2026 Infinity Game. All rights reserved.
 
 ## Current status
 Phase 1 stable arcade loop. Pattern and boss architecture is prepared but intentionally inactive for Phase 2.
+# INFINITE Web build
+
+The game uses a responsive canvas with a tested desktop-safe maximum viewport of **1280 × 720**. For itch.io, use **Click to launch in fullscreen**. If embedding in the page is required, set the iframe to **1280 × 720**; smaller screens remain responsive through the browser viewport.

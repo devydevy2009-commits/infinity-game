@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="it">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
@@ -16,23 +16,24 @@
   <canvas id="gameCanvas"></canvas>
   <div id="ui">
     <div id="score">Score: 0</div><div id="lives">Lives: 3</div><div id="timer">Time: 0:00</div><div id="power">Power: 0</div>
-    <button id="startBtn" type="button">Start</button><button id="settingsBtn" type="button" aria-label="Menu">⚙︎</button>
+    <button id="startBtn" type="button">Start</button><button id="settingsBtn" type="button" aria-label="Settings">⚙︎</button>
   </div>
   <div id="settingsMenu" class="hidden"><div class="menu-content">
     <h2>INFINITE</h2>
-    <p class="menu-note">Pronto a vedere quanto riesci a resistere? 🚀</p>
-    <button id="newGameBtn" type="button">Nuova missione</button><button id="pauseBtn" type="button">Metti in pausa</button><button id="resumeBtn" class="hidden" type="button">Riparti</button><button id="restartBtn" type="button">Riprova da capo</button><button id="scoresBtn" type="button">I tuoi record</button>
-    <button id="gyroToggleBtn" type="button" disabled aria-disabled="true">🌀 Giroscopio — in hangar</button><p class="hardmode-hint">Questa modalità è in pausa per ora. La nave preferisce andare dritta. 😎</p>
-    <button id="installBtn" class="hidden" type="button">Installa INFINITE</button><button id="iosInstallBtn" type="button">Porta INFINITE a Home</button><button id="refreshBtn" type="button">Aggiorna INFINITE</button><button id="closeSettingsBtn" type="button" class="menu-back">Torna al gioco</button>
-    <p class="menu-copyright">© 2026 Infinity Game. Tutti i diritti riservati.</p>
+    <p id="menuNote" class="menu-note">Ready to see how long you can survive? 🚀</p>
+    <button id="newGameBtn" type="button">New mission</button><button id="resumeBtn" class="hidden" type="button">Resume mission</button><button id="restartBtn" type="button">Try again</button><button id="scoresBtn" type="button">Your records</button>
+    <button id="gyroToggleBtn" type="button" disabled aria-disabled="true">🌀 Gyroscope — in the hangar</button><p id="hardmodeHint" class="hardmode-hint">This mode is taking a break for now. The ship likes flying straight. 😎</p>
+    <button id="installBtn" class="hidden" type="button">Install INFINITE</button><button id="iosInstallBtn" type="button">Take INFINITE Home</button><button id="refreshBtn" type="button">Refresh INFINITE</button><button id="closeSettingsBtn" type="button" class="menu-back">Back to game</button>
+    <p class="menu-copyright">© 2026 Infinity Game. All rights reserved.</p>
   </div></div>
-  <div id="gameOverMenu" class="hidden"><div class="menu-content"><h2>MISSIONE FINITA</h2><p id="finalScore"></p><div id="saveScoreBox"><input id="playerName" maxlength="14" placeholder="Il tuo nome" autocomplete="nickname" /><button id="saveScoreBtn" type="button">Salva il record</button></div><button id="restartFromGameOverBtn" type="button">Un'altra partita!</button><button id="showScoresFromGameOverBtn" type="button">Guarda i record</button><button id="closeGameOverBtn" type="button" class="menu-back">Chiudi</button></div></div>
-  <div id="scoreboardMenu" class="hidden"><div class="menu-content"><h2>HALL OF FAME</h2><p class="menu-note">Vediamo chi ha tenuto duro più a lungo.</p><ol id="scoreList"></ol><button id="restartFromScoreboardBtn" type="button">Prova a migliorarlo</button><button id="backFromScoreboardBtn" type="button" class="menu-back">Indietro</button><button id="closeScoresBtn" type="button" class="menu-back">Chiudi</button></div></div>
-  <div id="iosInstallHelp" class="hidden"><div class="menu-content install-help"><h2>PORTA INFINITE CON TE</h2><p>Su Safari tocca <strong>Condividi</strong>, poi scegli <strong>Aggiungi a Home</strong>. Così la prossima missione è a un tocco.</p><button id="closeIosInstallHelpBtn" type="button" class="menu-back">Torna indietro</button></div></div>
-  <div id="pauseOverlay" class="hidden"><div class="pause-content menu-content"><h2>PAUSA GALATTICA</h2><p class="menu-note">Anche i piloti migliori ogni tanto prendono fiato.</p><button id="resumeFromPauseBtn" type="button">Riprendi la missione</button><button id="restartFromPauseBtn" type="button">Ricomincia</button><button id="backFromPauseBtn" type="button" class="menu-back">Torna al menu</button></div></div>
+  <div id="gameOverMenu" class="hidden"><div class="menu-content"><h2 id="gameOverTitle">MISSION OVER</h2><p id="finalScore"></p><div id="saveScoreBox"><input id="playerName" maxlength="14" placeholder="Your name" autocomplete="nickname" /><button id="saveScoreBtn" type="button">Save the record</button></div><button id="restartFromGameOverBtn" type="button">Another run!</button><button id="showScoresFromGameOverBtn" type="button">View the records</button><button id="closeGameOverBtn" type="button" class="menu-back">Close</button></div></div>
+  <div id="scoreboardMenu" class="hidden"><div class="menu-content"><h2 id="scoreboardTitle">HALL OF FAME</h2><p id="scoreboardNote" class="menu-note">Let’s see who lasted the longest.</p><ol id="scoreList"></ol><button id="restartFromScoreboardBtn" type="button">Beat your record</button><button id="backFromScoreboardBtn" type="button" class="menu-back">Back</button><button id="closeScoresBtn" type="button" class="menu-back">Close</button></div></div>
+  <div id="iosInstallHelp" class="hidden"><div class="menu-content install-help"><h2 id="iosInstallTitle">TAKE INFINITE WITH YOU</h2><p id="iosInstallText">In Safari, tap <strong>Share</strong>, then choose <strong>Add to Home Screen</strong>. Your next mission is always one tap away.</p><button id="closeIosInstallHelpBtn" type="button" class="menu-back">Back</button></div></div>
+  <div id="pauseOverlay" class="hidden"><div class="pause-content menu-content"><h2 id="pauseTitle">GALACTIC PAUSE</h2><p id="pauseNote" class="menu-note">Even the best pilots need to catch their breath.</p><button id="resumeFromPauseBtn" type="button">Resume mission</button><button id="restartFromPauseBtn" type="button">Restart</button><button id="backFromPauseBtn" type="button" class="menu-back">Back to menu</button></div></div>
   <div id="hardModeNotice" class="hidden" aria-live="polite"></div><div id="gyroLabel" class="hidden" aria-live="polite"></div>
   <script src="game.js"></script>
   <script src="tactical_balance.js"></script>
   <script src="encounter_system.js"></script>
+  <script src="release_ui.js"></script>
 </body>
 </html>

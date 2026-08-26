@@ -6,9 +6,7 @@
   const GHOST_FIRE_START = 10;
   const GHOST_FIRE_INTERVAL = 1650;
   const GHOST_SPAWN_START = 5;
-  const GHOST_SPAWN_BASE = 0.025;
-  const GHOST_SPAWN_GROWTH = 0.003;
-  const GHOST_SPAWN_CAP = 0.060;
+  const GHOST_RANDOM_KEEP = 0.58;
   const HUNTER_FIRE_INTERVAL = 1450;
   const DRONE_FIRE_INTERVAL = 1750;
   const MAX_HUNTER_DEPTH = 0.68;
@@ -59,9 +57,7 @@
     return basePlayerUpdate.call(this, this.x + dx * TOUCH_MOVE_FACTOR, this.y + dy * TOUCH_MOVE_FACTOR);
   };
 
-  // Reuse the original Hunter steering/speed logic, but suppress its old firing
-  // branch and apply one controlled tactical cadence here. This avoids stacking
-  // a second firing scheduler on top of the engine.
+  // Reuse the engine's steering/speed logic while replacing only its firing cadence.
   Enemy.prototype.updateHunter = function (f) {
     if (!player) return;
     const now = Date.now();
@@ -247,9 +243,16 @@
   }
 
   window.spawn = function () {
-    const before = powerups.length;
+    const before = enemies.length;
+    const powerupBefore = powerups.length;
     baseSpawn();
-    if (tier() >= 2 && powerups.length > before && Math.random() < PROTECTED_POWERUP_CHANCE) protectPowerup(powerups[powerups.length - 1]);
+    // Only throttle free-roaming Ghosts. Tutorial/formation Ghosts keep their design.
+    if (tier() >= GHOST_SPAWN_START && Math.random() > GHOST_RANDOM_KEEP) {
+      for (let i = enemies.length - 1; i >= before; i--) {
+        if (enemies[i].kind === 'ghost' && !enemies[i].formationId) { enemies.splice(i, 1); break; }
+      }
+    }
+    if (tier() >= 2 && powerups.length > powerupBefore && Math.random() < PROTECTED_POWERUP_CHANCE) protectPowerup(powerups[powerups.length - 1]);
   };
 
   Powerup.prototype.draw = function () {

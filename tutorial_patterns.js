@@ -1,5 +1,5 @@
 // INFINITE — tutorial encounter patterns.
-// Loaded after encounter_system.js so this layer owns only the staged patterns.
+// One owner for staged tutorial patterns; legacy random formations remain active.
 (() => {
   'use strict';
 
@@ -9,70 +9,115 @@
     { at: 70, type: 'ghost' },
     { at: 100, type: 'hunter' }
   ];
+
   const baseSpawn = window.spawn;
   const baseEnemyUpdate = Enemy.prototype.update;
   const baseHunterUpdate = Enemy.prototype.updateHunter;
+  const baseUpdateFormations = window.updateFormations;
   const baseResetGame = window.resetGame;
 
   let patternIndex = 0;
   let active = null;
 
-  function isActive(pattern) {
+  function activePatternExists(pattern) {
     return !!pattern && enemies.some(e => e.tutorialPattern === pattern);
   }
 
-  function blocked() {
-    if (!active) return false;
-    if (isActive(active)) return true;
+  function releaseFinishedPattern() {
+    if (!active || activePatternExists(active)) return false;
     active = null;
-    return false;
+    return true;
   }
 
-  function normalKind(t) {
-    const r = Math.random();
-    if (t < 10) return 'asteroid';
-    if (t < 40) return r < 0.68 ? 'asteroid' : 'drone';
-    if (t < 70) return r < 0.48 ? 'asteroid' : r < 0.78 ? 'drone' : 'transport';
-    if (t < 100) return r < 0.38 ? 'asteroid' : r < 0.64 ? 'drone' : r < 0.84 ? 'transport' : 'ghost';
-    return r < 0.30 ? 'asteroid' : r < 0.52 ? 'drone' : r < 0.75 ? 'transport' : r < 0.90 ? 'ghost' : 'hunter';
+  function skipPastMissedPatterns(seconds) {
+    while (patternIndex < PATTERNS.length && seconds > PATTERNS[patternIndex].at) patternIndex++;
+  }
+
+  function allowedKinds(seconds) {
+    if (seconds < 10) return ['asteroid'];
+    if (seconds < 40) return ['asteroid', 'drone'];
+    if (seconds < 70) return ['asteroid', 'drone', 'transport'];
+    if (seconds < 100) return ['asteroid', 'drone', 'transport', 'ghost'];
+    return ['asteroid', 'drone', 'transport', 'ghost', 'hunter'];
+  }
+
+  function fallbackKind(seconds) {
+    if (seconds < 10) return 'asteroid';
+    if (seconds < 40) return 'drone';
+    if (seconds < 70) return 'transport';
+    if (seconds < 100) return 'ghost';
+    return 'hunter';
+  }
+
+  // Preserve formation / power-up guard geometry while changing only an
+  // enemy type that would violate the staged progression.
+  function replaceEnemyKind(enemy, kind) {
+    if (!enemy || enemy.kind === kind) return enemy;
+    const replacement = new Enemy(kind);
+    const fields = [
+      'x', 'y', 'vx', 'vy', 'rot', 'hitUntil', 'lastShot', 'lastGhostShot',
+      'orbit', 'formationId', 'formOffset', 'formAnchor', 'formationControlled',
+      'protectedPowerup', 'guardOffset'
+    ];
+    for (const field of fields) if (field in enemy) replacement[field] = enemy[field];
+    replacement._tacticalHpReady = false;
+    return replacement;
+  }
+
+  function sanitizeNewEnemies(before, seconds) {
+    const allowed = allowedKinds(seconds);
+    const fallback = fallbackKind(seconds);
+    for (let i = 0; i < enemies.length; i++) {
+      const enemy = enemies[i];
+      if (before.has(enemy) || allowed.includes(enemy.kind)) continue;
+      enemies[i] = replaceEnemyKind(enemy, fallback);
+    }
   }
 
   function createMember(kind, pattern, offset) {
-    const e = new Enemy(kind);
-    e.tutorialPattern = pattern;
-    e.tutorialOffset = offset;
-    e.formationId = null;
-    e.formationControlled = true;
-    e.x = pattern.anchor.x + offset.x;
-    e.y = pattern.anchor.y + offset.y;
-    e.vx = 0; e.vy = 0;
-    return e;
+    const enemy = new Enemy(kind);
+    enemy.tutorialPattern = pattern;
+    enemy.tutorialOffset = offset;
+    enemy.formationId = null;
+    enemy.formationControlled = true;
+    enemy.x = pattern.anchor.x + offset.x;
+    enemy.y = pattern.anchor.y + offset.y;
+    enemy.vx = 0;
+    enemy.vy = 0;
+    return enemy;
   }
 
   function createPattern(type) {
-    const p = {
-      id: ++patternIndex,
+    const pattern = {
       type,
       phase: 'entry',
-      anchor: { x: cx, y: S(-55), vx: 0, vy: S(1.02) }
+      anchor: { x: cx, y: -S(58), vx: 0, vy: S(1.02) }
     };
     const offsets = [];
 
     if (type === 'drone') {
       const gx = S(34), gy = S(34);
-      for (let row = 0; row < 3; row++) for (let col = 0; col < 3; col++) offsets.push({ x: (col - 1) * gx, y: row * gy });
+      for (let row = 0; row < 3; row++) {
+        for (let col = 0; col < 3; col++) offsets.push({ x: (col - 1) * gx, y: row * gy });
+      }
     } else if (type === 'transport') {
-      const gx = S(38), count = Math.ceil(width / gx) + 1;
-      p.anchor.x = -gx * 0.5;
-      p.anchor.vy = S(1.00);
+      // Continuous wall: transport collision radius is S(20), so S(40)
+      // center spacing removes the passage without overlapping hulls.
+      const gx = S(40);
+      const count = Math.ceil(width / gx) + 2;
+      pattern.anchor.x = -gx;
+      pattern.anchor.vy = S(1.00);
       for (let i = 0; i < count; i++) offsets.push({ x: i * gx, y: 0 });
     } else if (type === 'ghost') {
-      const gx = S(31.5), count = Math.ceil(width / gx) + 2;
-      p.anchor.x = -gx;
-      p.anchor.vy = S(0.96);
-      for (let i = 0; i < count; i++) offsets.push({ x: i * gx, y: 0 });
+      // Checker/zig-zag line. The diagonal spacing leaves a real corridor
+      // between consecutive ghosts while still covering the full width.
+      const gx = S(44), gy = S(26);
+      const count = Math.ceil(width / gx) + 3;
+      pattern.anchor.x = -gx;
+      pattern.anchor.vy = S(0.96);
+      for (let i = 0; i < count; i++) offsets.push({ x: i * gx, y: i % 2 === 0 ? -gy : gy });
     } else if (type === 'hunter') {
-      const gx = S(38), gy = S(38);
+      const gx = S(46), gy = S(42);
       offsets.push(
         { x: 0, y: 0 },
         { x: -gx, y: gy }, { x: gx, y: gy },
@@ -81,64 +126,77 @@
       );
     }
 
-    p.anchor.x = type === 'transport' || type === 'ghost' ? p.anchor.x : cx;
-    p.anchor.vy = p.anchor.vy || S(1.02);
-    const members = offsets.map(offset => createMember(type, p, offset));
+    const members = offsets.map(offset => createMember(type, pattern, offset));
     enemies.push(...members);
-    active = p;
-    return p;
+    active = pattern;
+    return pattern;
   }
 
-  function currentPatternDue(seconds) {
-    if (patternIndex >= PATTERNS.length || active) return false;
-    return seconds >= PATTERNS[patternIndex].at;
+  function patternDue(seconds) {
+    skipPastMissedPatterns(seconds);
+    return !active && patternIndex < PATTERNS.length && seconds >= PATTERNS[patternIndex].at;
   }
 
-  function updatePattern(p, f) {
-    if (!p || !isActive(p)) return;
+  function updateTutorialPattern(pattern, f) {
+    if (!pattern || !activePatternExists(pattern)) return;
 
-    if (p.type === 'hunter' && p.phase === 'entry' && p.anchor.y >= height * 0.46) {
-      p.phase = 'split';
-      const hunters = enemies.filter(e => e.tutorialPattern === p);
-      hunters.forEach((e, i) => {
-        e.formationControlled = false;
-        e.patternDetached = true;
-        e.surroundAngle = -Math.PI / 2 + (i / hunters.length) * Math.PI * 2;
+    if (pattern.type === 'hunter' && pattern.phase === 'entry' && pattern.anchor.y >= height * 0.46) {
+      pattern.phase = 'split';
+      const hunters = enemies.filter(e => e.tutorialPattern === pattern);
+      const count = hunters.length || 1;
+      hunters.forEach((enemy, index) => {
+        enemy.formationControlled = false;
+        enemy.patternDetached = true;
+        enemy.tutorialSurround = true;
+        enemy.surroundAngle = -Math.PI / 2 + (index / count) * Math.PI * 2;
       });
       return;
     }
 
-    if (p.phase === 'split') return;
+    if (pattern.phase === 'split') return;
 
-    p.anchor.x = clamp(p.anchor.x + p.anchor.vx * f, -S(140), width + S(140));
-    p.anchor.y += p.anchor.vy * f;
-    for (const e of enemies) {
-      if (e.tutorialPattern !== p || e.patternDetached) continue;
-      e.x = p.anchor.x + e.tutorialOffset.x;
-      e.y = p.anchor.y + e.tutorialOffset.y;
-      e.vx = 0; e.vy = 0;
-      if (e.kind === 'hunter' && player) e.rot = Math.atan2(player.y - e.y, player.x - e.x) + Math.PI / 2;
+    pattern.anchor.x = clamp(pattern.anchor.x + pattern.anchor.vx * f, -S(160), width + S(160));
+    pattern.anchor.y += pattern.anchor.vy * f;
+    for (const enemy of enemies) {
+      if (enemy.tutorialPattern !== pattern || enemy.patternDetached) continue;
+      enemy.x = pattern.anchor.x + enemy.tutorialOffset.x;
+      enemy.y = pattern.anchor.y + enemy.tutorialOffset.y;
+      enemy.vx = 0;
+      enemy.vy = 0;
+      if (enemy.kind === 'hunter' && player) enemy.rot = Math.atan2(player.y - enemy.y, player.x - enemy.x) + Math.PI / 2;
     }
   }
 
   Enemy.prototype.updateHunter = function (f) {
-    baseHunterUpdate.call(this, f);
-    if (!player || !this.tutorialPattern || this.tutorialPattern.phase !== 'split') return;
+    const surround = this.tutorialSurround && this.tutorialPattern?.phase === 'split';
+    if (surround) {
+      // Tactical balance normally applies a lower-screen Hunter brake.
+      // Temporarily mark this Hunter as controlled so that brake does not
+      // fight the intentional tutorial surround movement.
+      const wasControlled = this.formationControlled;
+      this.formationControlled = true;
+      baseHunterUpdate.call(this, f);
+      this.formationControlled = wasControlled;
 
-    const angle = this.surroundAngle ?? 0;
-    const radius = S(112 + Math.min(tier(), 10) * 3);
-    const tx = player.x + Math.cos(angle) * radius;
-    const ty = player.y + Math.sin(angle) * radius;
-    const dx = tx - this.x, dy = ty - this.y;
-    const dist = Math.hypot(dx, dy) || 1;
-    const steer = S(0.11) * f;
-    this.vx += dx / dist * steer;
-    this.vy += dy / dist * steer;
-    const px = -Math.sin(angle), py = Math.cos(angle);
-    const tangential = S(0.035) * f;
-    this.vx += px * tangential;
-    this.vy += py * tangential;
-    this.rot = Math.atan2(player.y - this.y, player.x - this.x) + Math.PI / 2;
+      if (!player) return;
+      const angle = this.surroundAngle ?? 0;
+      const radius = S(118);
+      const tx = player.x + Math.cos(angle) * radius;
+      const ty = player.y + Math.sin(angle) * radius;
+      const dx = tx - this.x, dy = ty - this.y;
+      const dist = Math.hypot(dx, dy) || 1;
+      const steer = S(0.095) * f;
+      this.vx += (dx / dist) * steer;
+      this.vy += (dy / dist) * steer;
+
+      const txv = -Math.sin(angle), tyv = Math.cos(angle);
+      const tangential = S(0.025) * f;
+      this.vx += txv * tangential;
+      this.vy += tyv * tangential;
+      this.rot = Math.atan2(player.y - this.y, player.x - this.x) + Math.PI / 2;
+      return;
+    }
+    baseHunterUpdate.call(this, f);
   };
 
   Enemy.prototype.update = function (f) {
@@ -146,37 +204,34 @@
     const x = this.x, y = this.y;
     baseEnemyUpdate.call(this, f);
     if (controlled && !this.patternDetached) {
-      this.x = x; this.y = y; this.vx = 0; this.vy = 0;
+      this.x = x;
+      this.y = y;
+      this.vx = 0;
+      this.vy = 0;
     }
   };
 
   window.updateFormations = function (f) {
-    if (active) updatePattern(active, f);
+    if (active) updateTutorialPattern(active, f);
+    releaseFinishedPattern();
+    // Keep the tactical layer responsible for legacy random formations.
+    if (typeof baseUpdateFormations === 'function') baseUpdateFormations(f);
   };
 
   window.spawn = function () {
-    const t = secs();
-    if (blocked()) return;
+    const seconds = secs();
+    releaseFinishedPattern();
+    if (active) return;
 
-    if (currentPatternDue(t)) {
+    if (patternDue(seconds)) {
       createPattern(PATTERNS[patternIndex].type);
       patternIndex++;
       return;
     }
 
-    // Keep the original power-up timing/guard behavior, but remove every
-    // enemy that the legacy random-wave scheduler may add in this frame.
     const before = new Set(enemies);
     baseSpawn();
-    const additions = enemies.filter(e => !before.has(e));
-    const allowed = normalKind(t);
-    for (const e of additions) {
-      const legacyFormation = !!e.formationId;
-      if (legacyFormation || e.kind !== allowed) {
-        const i = enemies.indexOf(e);
-        if (i >= 0) enemies.splice(i, 1);
-      }
-    }
+    sanitizeNewEnemies(before, seconds);
   };
 
   if (typeof baseResetGame === 'function') {
@@ -186,4 +241,11 @@
       baseResetGame();
     };
   }
+
+  window.INFINITE_TUTORIAL_STATE = Object.freeze({
+    patterns: PATTERNS.map(p => ({ ...p })),
+    get index() { return patternIndex; },
+    get activeType() { return active?.type || null; },
+    get blocked() { return !!active; }
+  });
 })();

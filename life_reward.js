@@ -24,6 +24,17 @@
     powerups.push(...rewards.filter(r=>!r.destroyed));
     baseCollisions();
   };
+  let hunterRewardArmed=false;
+  let hunterRewardDropped=false;
+  setInterval(()=>{
+    const state=window.INFINITE_TUTORIAL_STATE;
+    if(!state)return;
+    if(state.index===0&&!state.activeType){hunterRewardArmed=false;hunterRewardDropped=false;}
+    if(state.activeType==='hunter')hunterRewardArmed=true;
+    if(hunterRewardArmed&&!hunterRewardDropped&&state.index>=4&&!state.activeType){
+      hunterRewardDropped=!!window.spawnLifeReward();
+    }
+  },100);
   const baseResetGame=window.resetGame;
-  if(typeof baseResetGame==='function')window.resetGame=function(){powerups=powerups.filter(p=>!p.isLifeReward);baseResetGame();};
+  if(typeof baseResetGame==='function')window.resetGame=function(){powerups=powerups.filter(p=>!p.isLifeReward);hunterRewardArmed=false;hunterRewardDropped=false;baseResetGame();};
 })();

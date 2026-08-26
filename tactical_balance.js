@@ -14,8 +14,6 @@
   const TOUCH_MOVE_FACTOR = 0.30;
   const PROTECTED_POWERUP_CHANCE = 0.22;
 
-  // Tutorial pattern schedule. A pattern blocks ordinary enemy spawning
-  // until every member of that pattern has disappeared from the arena.
   const TUTORIAL_PATTERNS = [
     { at: 10, type: 'drone' },
     { at: 40, type: 'transport' },
@@ -76,10 +74,7 @@
     const originalY = this.y;
     originalHunterUpdate.call(this, f);
 
-    // Once the wedge splits, hunters stop behaving like independent random
-    // pursuers and deliberately move toward fixed orbit targets around the player.
     if (hunterIsInTutorialSurround(this)) {
-      const p = this.tutorialPattern;
       const angle = this.surroundAngle ?? 0;
       const radius = S(112 + Math.min(tier(), 10) * 3);
       const tx = player.x + Math.cos(angle) * radius;
@@ -91,8 +86,6 @@
       this.vx += (dx / dist) * steer;
       this.vy += (dy / dist) * steer;
 
-      // Add tangential movement so the formation visibly tries to envelop
-      // the player instead of simply converging on four static points.
       const px = -Math.sin(angle);
       const py = Math.cos(angle);
       const tangential = S(0.035) * f;
@@ -198,8 +191,7 @@
   };
 
   function patternStillOnScreen(pattern) {
-    if (!pattern) return false;
-    return enemies.some(e => e.tutorialPattern === pattern);
+    return !!pattern && enemies.some(e => e.tutorialPattern === pattern);
   }
 
   function tutorialBlocked() {
@@ -232,11 +224,7 @@
     };
 
     if (type === 'drone') {
-      // Compact 3 x 3 block: the first real tutorial pattern.
-      const gapX = S(34);
-      const gapY = S(34);
-      pattern.anchor.x = cx;
-      pattern.members = [];
+      const gapX = S(34), gapY = S(34);
       for (let row = 0; row < 3; row++) {
         for (let col = 0; col < 3; col++) {
           pattern.members.push({ x: (col - 1) * gapX, y: row * gapY });
@@ -244,41 +232,31 @@
       }
       pattern.anchor.vy = S(1.02);
     } else if (type === 'transport') {
-      // Solid convoy: transport hulls touch/overlap slightly so there is no
-      // artificial gap to slip through.
       const gapX = S(38);
       const count = Math.ceil(width / gapX) + 1;
       pattern.anchor.x = -gapX * 0.5;
       pattern.members = Array.from({ length: count }, (_, i) => ({ x: i * gapX, y: 0 }));
       pattern.anchor.vy = S(1.00);
     } else if (type === 'ghost') {
-      // Nearly wall-to-wall ghost line with only a narrow visual gap between units.
       const gapX = S(31.5);
       const count = Math.ceil(width / gapX) + 2;
       pattern.anchor.x = -gapX;
       pattern.members = Array.from({ length: count }, (_, i) => ({ x: i * gapX, y: 0 }));
       pattern.anchor.vy = S(0.96);
     } else if (type === 'hunter') {
-      // Nine-hunter wedge. At mid-screen it releases into a controlled surround.
-      const gapX = S(38);
-      const gapY = S(38);
-      const wedge = [
+      const gapX = S(38), gapY = S(38);
+      pattern.members = [
         { x: 0, y: 0 },
         { x: -gapX, y: gapY }, { x: gapX, y: gapY },
         { x: -gapX * 2, y: gapY * 2 }, { x: 0, y: gapY * 2 }, { x: gapX * 2, y: gapY * 2 },
         { x: -gapX * 3, y: gapY * 3 }, { x: 0, y: gapY * 3 }, { x: gapX * 3, y: gapY * 3 }
       ];
-      pattern.members = wedge;
-      pattern.anchor.x = cx;
       pattern.anchor.vy = S(1.02);
     }
 
     for (const offset of pattern.members) {
-      const kind = type;
-      const e = makeTutorialEnemy(kind, pattern, offset);
-      if (type === 'hunter') {
-        e.rot = Math.atan2(player.y - e.y, player.x - e.x) + Math.PI / 2;
-      }
+      const e = makeTutorialEnemy(type, pattern, offset);
+      if (type === 'hunter' && player) e.rot = Math.atan2(player.y - e.y, player.x - e.x) + Math.PI / 2;
       enemies.push(e);
     }
 
@@ -289,7 +267,6 @@
   function updateTutorialPattern(pattern, f) {
     if (!pattern || !patternStillOnScreen(pattern)) return;
 
-    // Hunters intentionally stop being a rigid formation near mid-screen.
     if (pattern.type === 'hunter' && pattern.phase === 'entry' && pattern.anchor.y >= height * 0.46) {
       pattern.phase = 'split';
       const hunters = enemies.filter(e => e.tutorialPattern === pattern && e.kind === 'hunter');
@@ -314,12 +291,9 @@
     }
   }
 
-  // Keep the existing global hook so game.js can keep calling updateFormations().
   window.updateFormations = function (f) {
     if (activeTutorial) updateTutorialPattern(activeTutorial, f);
 
-    // Preserve formation support for any legacy/external formation members,
-    // but never let it interfere with the new tutorial patterns.
     const groups = new Map();
     for (const e of enemies) {
       if (!e.formationId || e.tutorialPattern || e.patternDetached || !e.formAnchor) continue;
@@ -336,12 +310,20 @@
     }
   };
 
+  function allowedRandomKinds(t) {
+    if (t < 10) return ['asteroid'];
+    if (t < 40) return ['asteroid', 'drone'];
+    if (t < 70) return ['asteroid', 'drone', 'transport'];
+    if (t < 100) return ['asteroid', 'drone', 'transport', 'ghost'];
+    return ['asteroid', 'drone', 'transport', 'ghost', 'hunter'];
+  }
+
   function protectPowerup(p) {
     if (!p || p.protected || tutorialBlocked() || enemies.some(e => e.protectedPowerup === p)) return;
     p.protected = true;
+    const kinds = allowedRandomKinds(secs());
     const t = tier();
-    const guardCount = t >= 8 ? 5 : t >= 5 ? 4 : 3;
-    const kinds = t >= 6 ? ['hunter', 'drone', 'drone', 'transport', 'hunter'] : ['hunter', 'drone', 'drone', 'transport'];
+    const guardCount = Math.min(5, Math.max(3, t >= 8 ? 5 : t >= 5 ? 4 : 3));
     const radius = S(46 + Math.min(t, 10) * 3);
     for (let i = 0; i < guardCount; i++) {
       const e = new Enemy(kinds[i % kinds.length]);
@@ -356,46 +338,29 @@
     }
   }
 
-  function allowedRandomKinds(t) {
-    if (t < 10) return ['asteroid'];
-    if (t < 40) return ['asteroid', 'drone'];
-    if (t < 70) return ['asteroid', 'drone', 'transport'];
-    if (t < 100) return ['asteroid', 'drone', 'transport', 'ghost'];
-    return ['asteroid', 'drone', 'transport', 'ghost', 'hunter'];
-  }
-
   function spawnRandomEnemy() {
-    const t = secs();
-    const kinds = allowedRandomKinds(t);
-    const kind = kinds[Math.floor(Math.random() * kinds.length)];
-    enemies.push(new Enemy(kind));
+    const kinds = allowedRandomKinds(secs());
+    enemies.push(new Enemy(kinds[Math.floor(Math.random() * kinds.length)]));
   }
 
   function maybeStartTutorialPattern() {
     if (tutorialBlocked() || tutorialIndex >= TUTORIAL_PATTERNS.length) return;
     const nowSec = secs();
     if (nowSec < TUTORIAL_PATTERNS[tutorialIndex].at) return;
-
     const next = TUTORIAL_PATTERNS[tutorialIndex++];
     makeTutorialPattern(next.type);
   }
 
-  // Replace the base spawn scheduler. The original engine used random
-  // formations every few seconds, which directly conflicted with tutorial mode.
   window.spawn = function () {
     const now = Date.now();
     maybeStartTutorialPattern();
 
-    // While a tutorial pattern is alive, ordinary enemy spawning is completely paused.
     if (!tutorialBlocked()) {
       const t = tier();
       const cap = 8 + t * 3;
-      if (enemies.length < cap && Math.random() < 0.024 + Math.min(t, 18) * 0.0028) {
-        spawnRandomEnemy();
-      }
+      if (enemies.length < cap && Math.random() < 0.024 + Math.min(t, 18) * 0.0028) spawnRandomEnemy();
     }
 
-    // Power-up timing remains independent from enemy pattern timing.
     if (!nextPowerupAt) nextPowerupAt = now + 12000;
     if (now >= nextPowerupAt && powerups.length === 0) {
       const p = new Powerup();
@@ -405,7 +370,6 @@
     }
   };
 
-  // Reset the tutorial sequence together with the normal game state.
   if (typeof originalResetGame === 'function') {
     window.resetGame = function () {
       tutorialIndex = 0;

@@ -4,11 +4,11 @@
 
   const TIER_HEALTH_START = 5;
   const GHOST_FIRE_START = 10;
-  const GHOST_FIRE_INTERVAL = 1650;
+  const GHOST_FIRE_INTERVAL = 1900;
   const GHOST_SPAWN_START = 5;
   const GHOST_RANDOM_KEEP = 0.58;
-  const HUNTER_FIRE_INTERVAL = 1450;
-  const DRONE_FIRE_INTERVAL = 1750;
+  const HUNTER_FIRE_INTERVAL = 1650;
+  const DRONE_FIRE_INTERVAL = 1950;
   const MAX_HUNTER_DEPTH = 0.68;
   const MAX_ENEMY_SPEED = 3.35;
   const TOUCH_AHEAD = 25;
@@ -57,7 +57,6 @@
     return basePlayerUpdate.call(this, this.x + dx * TOUCH_MOVE_FACTOR, this.y + dy * TOUCH_MOVE_FACTOR);
   };
 
-  // Reuse the engine's steering/speed logic while replacing only its firing cadence.
   Enemy.prototype.updateHunter = function (f) {
     if (!player) return;
     const now = Date.now();
@@ -246,7 +245,19 @@
     const before = enemies.length;
     const powerupBefore = powerups.length;
     baseSpawn();
-    // Only throttle free-roaming Ghosts. Tutorial/formation Ghosts keep their design.
+
+    // After 1:45, keep the late-game curve from accelerating as quickly.
+    // We only throttle free-roaming random spawns; formations and tutorial patterns are untouched.
+    if (tier() >= 7) {
+      const newFreeEnemies = enemies.slice(before).filter(e => !e.formationId && !e.protectedPowerup);
+      if (newFreeEnemies.length && Math.random() < 0.42) {
+        const victim = newFreeEnemies[newFreeEnemies.length - 1];
+        const index = enemies.indexOf(victim);
+        if (index >= 0) enemies.splice(index, 1);
+      }
+      nextWaveAt = Math.max(nextWaveAt || 0, Date.now() + 1000 + Math.min(tier() - 7, 8) * 180);
+    }
+
     if (tier() >= GHOST_SPAWN_START && Math.random() > GHOST_RANDOM_KEEP) {
       for (let i = enemies.length - 1; i >= before; i--) {
         if (enemies[i].kind === 'ghost' && !enemies[i].formationId) { enemies.splice(i, 1); break; }

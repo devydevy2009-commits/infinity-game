@@ -5,6 +5,12 @@
   const TIER_HEALTH_START = 5;
   const GHOST_FIRE_START = 10;
   const GHOST_FIRE_INTERVAL = 1650;
+  const GHOST_SPAWN_START = 5;
+  const GHOST_SPAWN_BASE = 0.025;
+  const GHOST_SPAWN_GROWTH = 0.003;
+  const GHOST_SPAWN_CAP = 0.060;
+  const HUNTER_FIRE_INTERVAL = 1450;
+  const DRONE_FIRE_INTERVAL = 1750;
   const MAX_HUNTER_DEPTH = 0.68;
   const MAX_ENEMY_SPEED = 3.35;
   const TOUCH_AHEAD = 25;
@@ -53,10 +59,17 @@
     return basePlayerUpdate.call(this, this.x + dx * TOUCH_MOVE_FACTOR, this.y + dy * TOUCH_MOVE_FACTOR);
   };
 
+  // Reuse the original Hunter steering/speed logic, but suppress its old firing
+  // branch and apply one controlled tactical cadence here. This avoids stacking
+  // a second firing scheduler on top of the engine.
   Enemy.prototype.updateHunter = function (f) {
     if (!player) return;
-    const originalY = this.y;
+    const now = Date.now();
+    const savedShot = this.lastShot;
+    this.lastShot = now;
     baseHunterUpdate.call(this, f);
+    this.lastShot = savedShot;
+
     this.rot = Math.atan2(player.y - this.y, player.x - this.x) + Math.PI / 2;
     const safeLimit = height * MAX_HUNTER_DEPTH;
     if (!this.formationControlled && this.y > safeLimit) {
@@ -64,19 +77,37 @@
       this.vy -= push * f;
       this.vx *= Math.pow(0.985, f);
       this.vy *= Math.pow(0.992, f);
-      if (this.y > height * 0.74) this.y = Math.min(originalY, safeLimit);
+      if (this.y > height * 0.74) this.y = Math.min(this.y, safeLimit);
+    }
+    if (!this.tacticalHunterShotAt) this.tacticalHunterShotAt = now + Math.random() * HUNTER_FIRE_INTERVAL;
+    if (now - this.tacticalHunterShotAt >= HUNTER_FIRE_INTERVAL) {
+      fireDirectedBurst(this.x, this.y, 1, 0, 4.8 + tier() * 0.08);
+      this.tacticalHunterShotAt = now;
     }
     clampEnemyVelocity(this);
   };
 
   Enemy.prototype.update = function (f) {
     const controlled = this.formationControlled;
+    const suppressDroneFire = this.kind === 'drone';
+    const savedShot = this.lastShot;
+    if (suppressDroneFire) this.lastShot = Date.now();
     const px = this.x, py = this.y;
     baseEnemyUpdate.call(this, f);
+    if (suppressDroneFire) this.lastShot = savedShot;
     ensureScaledHealth(this);
     if (controlled) {
       this.x = px; this.y = py; this.vx = 0; this.vy = 0;
     } else clampEnemyVelocity(this);
+
+    if (suppressDroneFire) {
+      const now = Date.now();
+      if (!this.tacticalDroneShotAt) this.tacticalDroneShotAt = now + Math.random() * DRONE_FIRE_INTERVAL;
+      if (now - this.tacticalDroneShotAt >= DRONE_FIRE_INTERVAL) {
+        fireRandomBurst(this.x, this.y, 1, 4.7 + tier() * 0.08);
+        this.tacticalDroneShotAt = now;
+      }
+    }
 
     if (this.protectedPowerup && powerups.includes(this.protectedPowerup)) {
       const p = this.protectedPowerup;
@@ -87,7 +118,7 @@
     if (this.kind === 'ghost' && tier() >= GHOST_FIRE_START) {
       if (!this.lastGhostShot) this.lastGhostShot = Date.now() + Math.random() * GHOST_FIRE_INTERVAL;
       if (Date.now() - this.lastGhostShot >= GHOST_FIRE_INTERVAL) {
-        fireRandomBurst(this.x, this.y, tier() >= 14 ? 2 : 1, 4.4 + tier() * 0.08);
+        fireRandomBurst(this.x, this.y, 1, 4.4 + tier() * 0.06);
         this.lastGhostShot = Date.now();
       }
     }
@@ -150,8 +181,9 @@
     const pool = pools[variant] || pools.mixed;
     return Array.from({ length: count }, (_, i) => {
       let kind = pool[(i + t) % pool.length];
-      if (kind === 'ghost' && t < 5) kind = 'asteroid';
+      if (kind === 'ghost' && t < GHOST_SPAWN_START) kind = 'asteroid';
       if (kind === 'transport' && t < 4) kind = 'drone';
+      if (kind === 'hunter' && t < 7) kind = 'drone';
       return kind;
     });
   }
@@ -170,7 +202,6 @@
     const id = ++formationSerial;
     const anchor = { x: center, y: S(FORMATION_ENTRY_Y), vy: S(FORMATION_SPEED + Math.min(t, 15) * 0.04) };
     const kinds = formationKinds(t, count, variant);
-
     formationAnchors.set(id, anchor);
     offsets.forEach((offset, i) => {
       const enemy = new Enemy(kinds[i]);

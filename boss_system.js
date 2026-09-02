@@ -9,19 +9,21 @@
   const SIDE_HP = 55;
   const CORE_HP = 90;
   const DRONES_PER_CARRIER = 3;
-
   const DRONE_RESPAWN_MS = 180;
   const DRONE_ORBIT_RADIUS = 54;
   const DRONE_ORBIT_SPEED = 0.018;
 
-  // Deterministic roguelike-style barrage: dense diagonal lanes with two
-  // permanent dodge corridors. No random bullet direction is used here.
+  // Fixed diagonal roguelike barrage. Two permanent lanes are omitted,
+  // leaving predictable dodge corridors instead of random death patterns.
   const BARRAGE_INTERVAL = 620;
-  const BARRAGE_LANES = 10;
+  const BARRAGE_LANES = 8;
+  const BARRAGE_GAP_LANES = new Set([2, 5]);
+  const BARRAGE_TARGET_Y_RATIO = 0.68;
   const BARRAGE_SPEED_Y = 4.8;
-  const BARRAGE_SPEED_X = 1.35;
-  const BARRAGE_GAP_LANES = new Set([3, 7]);
-  const BARRAGE_LANE_SPACING = 58;
+  const BOSS_BULLET_CAP = 72;
+  const MUZZLE_FLASH_MS = 150;
+  const POST_BOSS_RELIEF_MS = 5000;
+  const POST_BOSS_SLOW_MS = 900;
 
   const baseSpawn = window.spawn;
   const baseUpdate = window.update;
@@ -31,6 +33,7 @@
   let activeBoss = null;
   let bossTriggerAt = null;
   let bossCompleted = false;
+  let postBossReliefUntil = 0;
 
   function hunterPatternTime() {
     const patterns = window.INFINITE_TUTORIAL_STATE?.patterns || [];
@@ -38,9 +41,7 @@
     return hunter ? hunter.at : 100;
   }
 
-  function bossStartTime() {
-    return hunterPatternTime() + BOSS_TRIGGER_DELAY;
-  }
+  function bossStartTime() { return hunterPatternTime() + BOSS_TRIGGER_DELAY; }
 
   class BossDrone {
     constructor(carrier, index) {
@@ -62,12 +63,11 @@
       this.y = this.carrier.y + Math.sin(angle) * this.radius;
     }
 
-    get radius() {
-      return S(DRONE_ORBIT_RADIUS);
-    }
+    get radius() { return S(DRONE_ORBIT_RADIUS); }
 
     draw() {
-      const flashing = Date.now() < this.hitUntil && Math.floor(Date.now() / 70) % 2 === 0;
+      const now = activeBoss.now;
+      const flashing = now < this.hitUntil && Math.floor(now / 70) % 2 === 0;
       const color = flashing ? '#fff' : '#ff9a3d';
       const s = this.size;
       ctx.save();
@@ -75,16 +75,8 @@
       ctx.rotate(activeBoss.orbitPhase + this.index * Math.PI * 2 / DRONES_PER_CARRIER);
       ctx.strokeStyle = color;
       ctx.lineWidth = S(2);
-      ctx.beginPath();
-      ctx.moveTo(0, -s);
-      ctx.lineTo(s, 0);
-      ctx.lineTo(0, s);
-      ctx.lineTo(-s, 0);
-      ctx.closePath();
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.arc(0, 0, s * 0.35, 0, Math.PI * 2);
-      ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, -s); ctx.lineTo(s, 0); ctx.lineTo(0, s); ctx.lineTo(-s, 0); ctx.closePath(); ctx.stroke();
+      ctx.beginPath(); ctx.arc(0, 0, s * 0.35, 0, Math.PI * 2); ctx.stroke();
       ctx.restore();
     }
 
@@ -117,49 +109,27 @@
     }
 
     draw() {
-      const flashing = Date.now() < this.hitUntil && Math.floor(Date.now() / 70) % 2 === 0;
+      const now = activeBoss.now;
+      const flashing = now < this.hitUntil && Math.floor(now / 70) % 2 === 0;
       const color = flashing ? '#fff' : (this.central ? '#ff3d3d' : '#ff7a3d');
-      const l = this.length;
-      const w = this.width;
-
+      const l = this.length, w = this.width;
       ctx.save();
       ctx.translate(this.x, this.y);
       ctx.rotate(Math.sin(this.phase) * 0.035);
       ctx.strokeStyle = color;
       ctx.lineWidth = S(this.central ? 3.2 : 2.5);
-
-      // Long spacecraft silhouette: pointed bow, elongated hull, engine tail.
       ctx.beginPath();
-      ctx.moveTo(0, -l * 0.58);
-      ctx.lineTo(w * 0.62, -l * 0.28);
-      ctx.lineTo(w * 0.48, l * 0.34);
-      ctx.lineTo(w * 0.22, l * 0.49);
-      ctx.lineTo(0, l * 0.58);
-      ctx.lineTo(-w * 0.22, l * 0.49);
-      ctx.lineTo(-w * 0.48, l * 0.34);
-      ctx.lineTo(-w * 0.62, -l * 0.28);
-      ctx.closePath();
-      ctx.stroke();
-
+      ctx.moveTo(0, -l * 0.58); ctx.lineTo(w * 0.62, -l * 0.28); ctx.lineTo(w * 0.48, l * 0.34);
+      ctx.lineTo(w * 0.22, l * 0.49); ctx.lineTo(0, l * 0.58); ctx.lineTo(-w * 0.22, l * 0.49);
+      ctx.lineTo(-w * 0.48, l * 0.34); ctx.lineTo(-w * 0.62, -l * 0.28); ctx.closePath(); ctx.stroke();
       ctx.beginPath();
-      ctx.moveTo(-w * 0.40, -l * 0.12);
-      ctx.lineTo(w * 0.40, -l * 0.12);
-      ctx.moveTo(-w * 0.30, l * 0.18);
-      ctx.lineTo(w * 0.30, l * 0.18);
-      ctx.stroke();
-
+      ctx.moveTo(-w * 0.40, -l * 0.12); ctx.lineTo(w * 0.40, -l * 0.12);
+      ctx.moveTo(-w * 0.30, l * 0.18); ctx.lineTo(w * 0.30, l * 0.18); ctx.stroke();
+      ctx.beginPath(); ctx.arc(0, -l * 0.02, w * 0.34, 0, Math.PI * 2); ctx.stroke();
       ctx.beginPath();
-      ctx.arc(0, -l * 0.02, w * 0.34, 0, Math.PI * 2);
-      ctx.stroke();
-
-      ctx.beginPath();
-      ctx.moveTo(-w * 0.26, l * 0.45);
-      ctx.lineTo(-w * 0.18, l * 0.68);
-      ctx.moveTo(w * 0.26, l * 0.45);
-      ctx.lineTo(w * 0.18, l * 0.68);
-      ctx.stroke();
+      ctx.moveTo(-w * 0.26, l * 0.45); ctx.lineTo(-w * 0.18, l * 0.68);
+      ctx.moveTo(w * 0.26, l * 0.45); ctx.lineTo(w * 0.18, l * 0.68); ctx.stroke();
       ctx.restore();
-
       drawCarrierBar(this);
     }
 
@@ -167,27 +137,19 @@
   }
 
   function createBoss() {
+    const now = Date.now();
     const boss = {
       name: BOSS_NAME,
-      startedAt: Date.now(),
+      startedAt: now,
+      now,
       orbitPhase: 0,
-      nextBarrageAt: Date.now() + 900,
+      nextBarrageAt: now + 900,
       barrageStep: 0,
+      muzzleFlashes: [],
       carriers: Array.from({ length: CARRIER_COUNT }, (_, index) => new Carrier(index))
     };
-
-    for (const carrier of boss.carriers) {
-      for (let i = 0; i < DRONES_PER_CARRIER; i++) carrier.drones.push(new BossDrone(carrier, i));
-    }
+    for (const carrier of boss.carriers) for (let i = 0; i < DRONES_PER_CARRIER; i++) carrier.drones.push(new BossDrone(carrier, i));
     return boss;
-  }
-
-  function totalBossHp() {
-    if (!activeBoss) return { hp: 0, maxHp: 0 };
-    return activeBoss.carriers.reduce(
-      (total, carrier) => ({ hp: total.hp + carrier.hp, maxHp: total.maxHp + carrier.maxHp }),
-      { hp: 0, maxHp: 0 }
-    );
   }
 
   function drawCarrierBar(carrier) {
@@ -196,8 +158,7 @@
     const x = carrier.x - barWidth / 2;
     const y = carrier.y + carrier.length * 0.58 + S(8);
     ctx.save();
-    ctx.fillStyle = 'rgba(255,255,255,.16)';
-    ctx.fillRect(x, y, barWidth, barHeight);
+    ctx.fillStyle = 'rgba(255,255,255,.16)'; ctx.fillRect(x, y, barWidth, barHeight);
     ctx.fillStyle = carrier.central ? '#ff3d3d' : '#ff9a3d';
     ctx.fillRect(x, y, barWidth * clamp(carrier.hp / carrier.maxHp, 0, 1), barHeight);
     ctx.restore();
@@ -205,23 +166,35 @@
 
   function drawBossHud() {
     if (!activeBoss) return;
-    const total = totalBossHp();
+    let hp = 0, maxHp = 0;
+    for (const carrier of activeBoss.carriers) { hp += carrier.hp; maxHp += carrier.maxHp; }
     const barWidth = Math.min(width * 0.72, S(300));
     const barHeight = S(9);
-    const x = (width - barWidth) / 2;
-    const y = S(44);
-
+    const x = (width - barWidth) / 2, y = S(44);
     ctx.save();
     ctx.textAlign = 'center';
     ctx.font = `bold ${Math.max(11, S(12))}px sans-serif`;
-    ctx.fillStyle = '#fff';
-    ctx.globalAlpha = 0.9;
-    ctx.fillText(BOSS_NAME, cx, y - S(11));
-    ctx.globalAlpha = 1;
-    ctx.fillStyle = 'rgba(255,255,255,.14)';
-    ctx.fillRect(x, y, barWidth, barHeight);
-    ctx.fillStyle = '#ff3d3d';
-    ctx.fillRect(x, y, barWidth * clamp(total.hp / total.maxHp, 0, 1), barHeight);
+    ctx.fillStyle = '#fff'; ctx.globalAlpha = 0.9; ctx.fillText(BOSS_NAME, cx, y - S(11)); ctx.globalAlpha = 1;
+    ctx.fillStyle = 'rgba(255,255,255,.14)'; ctx.fillRect(x, y, barWidth, barHeight);
+    ctx.fillStyle = '#ff3d3d'; ctx.fillRect(x, y, barWidth * clamp(hp / maxHp, 0, 1), barHeight);
+    ctx.restore();
+  }
+
+  function addMuzzleFlash(x, y, angle, size) {
+    if (activeBoss) activeBoss.muzzleFlashes.push({ x, y, angle, size, until: activeBoss.now + MUZZLE_FLASH_MS });
+  }
+
+  function drawMuzzleFlashes() {
+    if (!activeBoss || !activeBoss.muzzleFlashes.length) return;
+    const now = activeBoss.now, flashes = activeBoss.muzzleFlashes;
+    ctx.save();
+    for (let i = flashes.length - 1; i >= 0; i--) {
+      const flash = flashes[i];
+      if (flash.until <= now) { flashes.splice(i, 1); continue; }
+      const life = (flash.until - now) / MUZZLE_FLASH_MS;
+      ctx.save(); ctx.translate(flash.x, flash.y); ctx.rotate(flash.angle); ctx.globalAlpha = life; ctx.strokeStyle = '#fff'; ctx.lineWidth = S(2.5);
+      ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, -S(flash.size)); ctx.lineTo(S(flash.size * 0.38), 0); ctx.lineTo(0, S(flash.size)); ctx.closePath(); ctx.stroke(); ctx.restore();
+    }
     ctx.restore();
   }
 
@@ -231,133 +204,152 @@
     return bullet;
   }
 
+  function addBossBullet(bullet) {
+    let count = 0;
+    for (const existing of enemyBullets) if (existing.bossBullet) count++;
+    if (count < BOSS_BULLET_CAP) enemyBullets.push(bullet);
+  }
+
+  function fireEmitter(emitter, lane) {
+    const targetY = height * BARRAGE_TARGET_Y_RATIO;
+    const laneWidth = width / BARRAGE_LANES;
+    const targetX = laneWidth * (lane + 0.5);
+    const dy = Math.max(S(40), targetY - emitter.y);
+    const vy = S(BARRAGE_SPEED_Y);
+    const travel = dy / vy;
+    const vx = (targetX - emitter.x) / Math.max(1, travel);
+    addBossBullet(createBossBullet(emitter.x, emitter.y, vx, vy));
+    addMuzzleFlash(emitter.x, emitter.y, Math.atan2(vy, vx), emitter.size || 9);
+  }
+
   function fireDiagonalBarrage() {
     if (!activeBoss) return;
-
-    const laneSpacing = Math.max(S(BARRAGE_LANE_SPACING), width / (BARRAGE_LANES + 1));
-    const startX = cx - laneSpacing * ((BARRAGE_LANES - 1) / 2);
     const direction = activeBoss.barrageStep % 2 === 0 ? 1 : -1;
+    const lanes = [];
+    for (let lane = 0; lane < BARRAGE_LANES; lane++) if (!BARRAGE_GAP_LANES.has(lane)) lanes.push(lane);
 
-    for (let lane = 0; lane < BARRAGE_LANES; lane++) {
-      if (BARRAGE_GAP_LANES.has(lane)) continue;
-      const x = startX + lane * laneSpacing;
-      const vx = S(BARRAGE_SPEED_X * direction);
-      const vy = S(BARRAGE_SPEED_Y);
-      enemyBullets.push(createBossBullet(x, -S(18), vx, vy));
+    const emitters = [];
+    for (const carrier of activeBoss.carriers) {
+      if (carrier.dead) continue;
+      emitters.push({ x: carrier.x - carrier.width * 0.55, y: carrier.y + carrier.length * 0.44, size: 8 });
+      emitters.push({ x: carrier.x + carrier.width * 0.55, y: carrier.y + carrier.length * 0.44, size: 8 });
+    }
+
+    for (let i = 0; i < lanes.length && i < emitters.length; i++) {
+      const laneIndex = direction > 0 ? lanes[i] : lanes[lanes.length - 1 - i];
+      fireEmitter(emitters[i], laneIndex);
+    }
+
+    // One drone per carrier fires a supporting stream, using the same diagonal family.
+    for (let i = 0; i < activeBoss.carriers.length; i++) {
+      const carrier = activeBoss.carriers[i];
+      if (carrier.dead) continue;
+      const drone = carrier.drones[(activeBoss.barrageStep + i) % DRONES_PER_CARRIER];
+      if (!drone || drone.dead) continue;
+      const laneIndex = lanes[(activeBoss.barrageStep + i * 2) % lanes.length];
+      fireEmitter({ x: drone.x, y: drone.y, size: 6 }, direction > 0 ? laneIndex : lanes[lanes.length - 1 - (laneIndex % lanes.length)]);
     }
     activeBoss.barrageStep++;
   }
 
   function damageBossTarget(target, amount) {
     target.hp = Math.max(0, target.hp - amount);
-    target.hitUntil = Date.now() + 90;
+    target.hitUntil = activeBoss.now + 90;
     if (target.hp === 0) {
       target.dead = true;
-      burst(target.x, target.y, target.central ? '#ff3d3d' : '#ff9a3d', target.central ? 45 : 28);
+      burst(target.x, target.y, target.central ? '#ff3d3d' : '#ff9a3d', target.central ? 38 : 22);
     }
   }
 
-  function replaceDrone(carrier, index) {
-    carrier.drones[index] = new BossDrone(carrier, index);
-  }
+  function replaceDrone(carrier, index) { carrier.drones[index] = new BossDrone(carrier, index); }
 
   function updateDroneRespawns(carrier) {
     if (carrier.dead) return;
-    const now = Date.now();
     for (let i = 0; i < carrier.drones.length; i++) {
       const drone = carrier.drones[i];
       if (!drone || !drone.dead) continue;
-      if (!drone.respawnAt) drone.respawnAt = now + DRONE_RESPAWN_MS;
-      if (now >= drone.respawnAt) replaceDrone(carrier, i);
+      if (!drone.respawnAt) drone.respawnAt = activeBoss.now + DRONE_RESPAWN_MS;
+      if (activeBoss.now >= drone.respawnAt) replaceDrone(carrier, i);
     }
   }
 
   function processBossCollisions() {
     if (!activeBoss || !player) return;
     const pb = player.b();
-
     for (const carrier of activeBoss.carriers) {
       if (carrier.dead) continue;
-
       for (let i = bullets.length - 1; i >= 0; i--) {
         const bullet = bullets[i];
         if (!overlap(carrier.b(), bullet.b())) continue;
-        damageBossTarget(carrier, bullet.damage || 1);
-        bullets.splice(i, 1);
-        if (carrier.dead) {
-          for (const drone of carrier.drones) if (drone) drone.dead = true;
-          break;
-        }
+        damageBossTarget(carrier, bullet.damage || 1); bullets.splice(i, 1);
+        if (carrier.dead) { for (const drone of carrier.drones) if (drone) drone.dead = true; break; }
       }
-
       for (let i = carrier.drones.length - 1; i >= 0; i--) {
         const drone = carrier.drones[i];
         if (!drone || drone.dead) continue;
         for (let j = bullets.length - 1; j >= 0; j--) {
           if (!overlap(drone.b(), bullets[j].b())) continue;
-          damageBossTarget(drone, bullets[j].damage || 1);
-          bullets.splice(j, 1);
-          if (drone.dead) {
-            drone.respawnAt = Date.now() + DRONE_RESPAWN_MS;
-            break;
-          }
+          damageBossTarget(drone, bullets[j].damage || 1); bullets.splice(j, 1);
+          if (drone.dead) { drone.respawnAt = activeBoss.now + DRONE_RESPAWN_MS; break; }
         }
-        if (!drone.dead && overlap(pb, drone.b())) {
-          damage();
-          drone.dead = true;
-          drone.respawnAt = Date.now() + DRONE_RESPAWN_MS;
-        }
+        if (!drone.dead && overlap(pb, drone.b())) { damage(); drone.dead = true; drone.respawnAt = activeBoss.now + DRONE_RESPAWN_MS; }
       }
-
       if (overlap(pb, carrier.b())) damage();
     }
-
     if (activeBoss.carriers.every(carrier => carrier.dead)) finishBoss();
   }
 
   function startBoss() {
     if (activeBoss || bossCompleted || !running) return;
+    enemies.length = 0;
     activeBoss = createBoss();
-    burst(cx, height * 0.22, '#ff3d3d', 34);
+    burst(cx, height * 0.22, '#ff3d3d', 28);
   }
 
   function finishBoss() {
     if (!activeBoss) return;
     bossCompleted = true;
+    const now = Date.now();
+    postBossReliefUntil = now + POST_BOSS_RELIEF_MS;
+    slowUntil = now + POST_BOSS_SLOW_MS;
+
+    // Free +1 power immediately, without spawning a pickup object.
+    power = Math.min(MAX_POWER, power + 1);
+    powerEl.textContent = 'Power: ' + power;
     score += 5000;
     scoreEl.textContent = 'Score: ' + score;
+
+    // Five-second clean breathing room: remove all threats and suppress spawning.
+    enemies.length = 0;
+    powerups.length = 0;
     enemyBullets = enemyBullets.filter(b => !b.bossBullet);
-    for (const carrier of activeBoss.carriers) burst(carrier.x, carrier.y, '#ff3d3d', 24);
+    for (const carrier of activeBoss.carriers) burst(carrier.x, carrier.y, '#ff3d3d', 18);
     activeBoss = null;
   }
 
-  // The boss temporarily owns the spawn gate. Once defeated, normal spawning
-  // resumes automatically and the completed boss cannot retrigger this run.
   window.spawn = function () {
-    if (activeBoss) return;
+    if (activeBoss || Date.now() < postBossReliefUntil) return;
     baseSpawn();
   };
 
   window.update = function () {
+    const now = Date.now();
     if (bossTriggerAt === null) bossTriggerAt = bossStartTime();
-    if (!activeBoss && !bossCompleted && secs() >= bossTriggerAt) startBoss();
-
+    if (!activeBoss && !bossCompleted && now >= bossTriggerAt) startBoss();
     baseUpdate.call(this);
     if (!activeBoss) return;
 
-    const f = Date.now() < slowUntil ? 0.32 : 1;
+    activeBoss.now = now;
+    const f = now < slowUntil ? 0.32 : 1;
     activeBoss.orbitPhase += DRONE_ORBIT_SPEED * f;
-
     for (const carrier of activeBoss.carriers) {
       if (!carrier.dead) carrier.update(f);
       updateDroneRespawns(carrier);
     }
-
-    if (Date.now() >= activeBoss.nextBarrageAt) {
+    if (now >= activeBoss.nextBarrageAt) {
       fireDiagonalBarrage();
-      activeBoss.nextBarrageAt = Date.now() + BARRAGE_INTERVAL;
+      activeBoss.nextBarrageAt = now + BARRAGE_INTERVAL;
     }
-
     processBossCollisions();
   };
 
@@ -369,6 +361,7 @@
       carrier.drones.forEach(drone => { if (drone && !drone.dead) drone.draw(); });
       carrier.draw();
     }
+    drawMuzzleFlashes();
     drawBossHud();
   };
 
@@ -376,6 +369,7 @@
     activeBoss = null;
     bossTriggerAt = null;
     bossCompleted = false;
+    postBossReliefUntil = 0;
     baseResetGame.call(this);
   };
 
@@ -384,6 +378,7 @@
     get name() { return activeBoss?.name || null; },
     get triggerAt() { return bossTriggerAt ?? bossStartTime(); },
     get carriersAlive() { return activeBoss?.carriers.filter(carrier => !carrier.dead).length || 0; },
-    get completed() { return bossCompleted; }
+    get completed() { return bossCompleted; },
+    get reliefUntil() { return postBossReliefUntil; }
   });
 })();

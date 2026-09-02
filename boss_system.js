@@ -9,19 +9,28 @@
   const SIDE_HP = 55;
   const CORE_HP = 90;
   const DRONES_PER_CARRIER = 3;
+
   const DRONE_RESPAWN_MS = 180;
   const DRONE_ORBIT_RADIUS = 54;
   const DRONE_ORBIT_SPEED = 0.018;
 
-  // Fixed diagonal roguelike barrage. Two permanent lanes are omitted,
-  // leaving predictable dodge corridors instead of random death patterns.
+  // Keep the original diagonal roguelike barrage: dense parallel streams,
+  // two permanent dodge corridors, and alternating sweep direction.
   const BARRAGE_INTERVAL = 620;
-  const BARRAGE_LANES = 8;
-  const BARRAGE_GAP_LANES = new Set([2, 5]);
-  const BARRAGE_TARGET_Y_RATIO = 0.68;
+  const BARRAGE_LANES = 10;
   const BARRAGE_SPEED_Y = 4.8;
+  const BARRAGE_SPEED_X = 1.35;
+  const BARRAGE_GAP_LANES = new Set([3, 7]);
+  const BARRAGE_LANE_SPACING = 58;
   const BOSS_BULLET_CAP = 72;
+
+  // These are visual emitters only: one fixed drone per barrage lane.
+  // They make the original bullet pattern visibly originate from enemies
+  // without changing its geometry or difficulty.
+  const BARRAGE_DRONE_Y = 18;
+  const BARRAGE_DRONE_SIZE = 9;
   const MUZZLE_FLASH_MS = 150;
+
   const POST_BOSS_RELIEF_MS = 5000;
   const POST_BOSS_SLOW_MS = 900;
 
@@ -41,7 +50,9 @@
     return hunter ? hunter.at : 100;
   }
 
-  function bossStartTime() { return hunterPatternTime() + BOSS_TRIGGER_DELAY; }
+  function bossStartTime() {
+    return hunterPatternTime() + BOSS_TRIGGER_DELAY;
+  }
 
   class BossDrone {
     constructor(carrier, index) {
@@ -63,7 +74,9 @@
       this.y = this.carrier.y + Math.sin(angle) * this.radius;
     }
 
-    get radius() { return S(DRONE_ORBIT_RADIUS); }
+    get radius() {
+      return S(DRONE_ORBIT_RADIUS);
+    }
 
     draw() {
       const now = activeBoss.now;
@@ -75,12 +88,69 @@
       ctx.rotate(activeBoss.orbitPhase + this.index * Math.PI * 2 / DRONES_PER_CARRIER);
       ctx.strokeStyle = color;
       ctx.lineWidth = S(2);
-      ctx.beginPath(); ctx.moveTo(0, -s); ctx.lineTo(s, 0); ctx.lineTo(0, s); ctx.lineTo(-s, 0); ctx.closePath(); ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(0, -s); ctx.lineTo(s, 0); ctx.lineTo(0, s); ctx.lineTo(-s, 0); ctx.closePath();
+      ctx.stroke();
       ctx.beginPath(); ctx.arc(0, 0, s * 0.35, 0, Math.PI * 2); ctx.stroke();
       ctx.restore();
     }
 
     b() { return { x: this.x, y: this.y, r: this.size * 1.05 }; }
+  }
+
+  // Non-orbiting firing drones. They are deliberately separate from the
+  // carrier escorts: their only job is to visually own the barrage streams.
+  class BarrageDrone {
+    constructor(x) {
+      this.x = x;
+      this.y = S(BARRAGE_DRONE_Y);
+      this.size = S(BARRAGE_DRONE_SIZE);
+      this.flashUntil = 0;
+    }
+
+    draw(now) {
+      const flashing = now < this.flashUntil;
+      const color = flashing ? '#fff' : '#ff9a3d';
+      const s = this.size;
+
+      ctx.save();
+      ctx.translate(this.x, this.y);
+      ctx.strokeStyle = color;
+      ctx.lineWidth = S(1.8);
+
+      // Small downward-facing diamond/ship with a visible central emitter.
+      ctx.beginPath();
+      ctx.moveTo(0, -s * 0.9);
+      ctx.lineTo(s * 0.72, -s * 0.15);
+      ctx.lineTo(s * 0.48, s * 0.62);
+      ctx.lineTo(0, s * 0.9);
+      ctx.lineTo(-s * 0.48, s * 0.62);
+      ctx.lineTo(-s * 0.72, -s * 0.15);
+      ctx.closePath();
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(-s * 0.45, s * 0.18);
+      ctx.lineTo(s * 0.45, s * 0.18);
+      ctx.stroke();
+
+      // Barrel/muzzle pointing exactly along the barrage's initial direction.
+      ctx.beginPath();
+      ctx.moveTo(0, s * 0.55);
+      ctx.lineTo(0, s * 1.35);
+      ctx.stroke();
+
+      if (flashing) {
+        ctx.globalAlpha = 0.9;
+        ctx.beginPath();
+        ctx.moveTo(0, s * 1.2);
+        ctx.lineTo(-s * 0.42, s * 1.85);
+        ctx.lineTo(s * 0.42, s * 1.85);
+        ctx.closePath();
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
   }
 
   class Carrier {
@@ -112,24 +182,47 @@
       const now = activeBoss.now;
       const flashing = now < this.hitUntil && Math.floor(now / 70) % 2 === 0;
       const color = flashing ? '#fff' : (this.central ? '#ff3d3d' : '#ff7a3d');
-      const l = this.length, w = this.width;
+      const l = this.length;
+      const w = this.width;
+
       ctx.save();
       ctx.translate(this.x, this.y);
       ctx.rotate(Math.sin(this.phase) * 0.035);
       ctx.strokeStyle = color;
       ctx.lineWidth = S(this.central ? 3.2 : 2.5);
+
+      // Long spacecraft silhouette: pointed bow, elongated hull, engine tail.
       ctx.beginPath();
-      ctx.moveTo(0, -l * 0.58); ctx.lineTo(w * 0.62, -l * 0.28); ctx.lineTo(w * 0.48, l * 0.34);
-      ctx.lineTo(w * 0.22, l * 0.49); ctx.lineTo(0, l * 0.58); ctx.lineTo(-w * 0.22, l * 0.49);
-      ctx.lineTo(-w * 0.48, l * 0.34); ctx.lineTo(-w * 0.62, -l * 0.28); ctx.closePath(); ctx.stroke();
+      ctx.moveTo(0, -l * 0.58);
+      ctx.lineTo(w * 0.62, -l * 0.28);
+      ctx.lineTo(w * 0.48, l * 0.34);
+      ctx.lineTo(w * 0.22, l * 0.49);
+      ctx.lineTo(0, l * 0.58);
+      ctx.lineTo(-w * 0.22, l * 0.49);
+      ctx.lineTo(-w * 0.48, l * 0.34);
+      ctx.lineTo(-w * 0.62, -l * 0.28);
+      ctx.closePath();
+      ctx.stroke();
+
       ctx.beginPath();
-      ctx.moveTo(-w * 0.40, -l * 0.12); ctx.lineTo(w * 0.40, -l * 0.12);
-      ctx.moveTo(-w * 0.30, l * 0.18); ctx.lineTo(w * 0.30, l * 0.18); ctx.stroke();
-      ctx.beginPath(); ctx.arc(0, -l * 0.02, w * 0.34, 0, Math.PI * 2); ctx.stroke();
+      ctx.moveTo(-w * 0.40, -l * 0.12);
+      ctx.lineTo(w * 0.40, -l * 0.12);
+      ctx.moveTo(-w * 0.30, l * 0.18);
+      ctx.lineTo(w * 0.30, l * 0.18);
+      ctx.stroke();
+
       ctx.beginPath();
-      ctx.moveTo(-w * 0.26, l * 0.45); ctx.lineTo(-w * 0.18, l * 0.68);
-      ctx.moveTo(w * 0.26, l * 0.45); ctx.lineTo(w * 0.18, l * 0.68); ctx.stroke();
+      ctx.arc(0, -l * 0.02, w * 0.34, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(-w * 0.26, l * 0.45);
+      ctx.lineTo(-w * 0.18, l * 0.68);
+      ctx.moveTo(w * 0.26, l * 0.45);
+      ctx.lineTo(w * 0.18, l * 0.68);
+      ctx.stroke();
       ctx.restore();
+
       drawCarrierBar(this);
     }
 
@@ -138,6 +231,9 @@
 
   function createBoss() {
     const now = Date.now();
+    const laneSpacing = Math.max(S(BARRAGE_LANE_SPACING), width / (BARRAGE_LANES + 1));
+    const startX = cx - laneSpacing * ((BARRAGE_LANES - 1) / 2);
+
     const boss = {
       name: BOSS_NAME,
       startedAt: now,
@@ -146,9 +242,18 @@
       nextBarrageAt: now + 900,
       barrageStep: 0,
       muzzleFlashes: [],
-      carriers: Array.from({ length: CARRIER_COUNT }, (_, index) => new Carrier(index))
+      carriers: Array.from({ length: CARRIER_COUNT }, (_, index) => new Carrier(index)),
+      barrageDrones: []
     };
-    for (const carrier of boss.carriers) for (let i = 0; i < DRONES_PER_CARRIER; i++) carrier.drones.push(new BossDrone(carrier, i));
+
+    for (let lane = 0; lane < BARRAGE_LANES; lane++) {
+      if (BARRAGE_GAP_LANES.has(lane)) continue;
+      boss.barrageDrones.push(new BarrageDrone(startX + lane * laneSpacing));
+    }
+
+    for (const carrier of boss.carriers) {
+      for (let i = 0; i < DRONES_PER_CARRIER; i++) carrier.drones.push(new BossDrone(carrier, i));
+    }
     return boss;
   }
 
@@ -158,7 +263,8 @@
     const x = carrier.x - barWidth / 2;
     const y = carrier.y + carrier.length * 0.58 + S(8);
     ctx.save();
-    ctx.fillStyle = 'rgba(255,255,255,.16)'; ctx.fillRect(x, y, barWidth, barHeight);
+    ctx.fillStyle = 'rgba(255,255,255,.16)';
+    ctx.fillRect(x, y, barWidth, barHeight);
     ctx.fillStyle = carrier.central ? '#ff3d3d' : '#ff9a3d';
     ctx.fillRect(x, y, barWidth * clamp(carrier.hp / carrier.maxHp, 0, 1), barHeight);
     ctx.restore();
@@ -166,34 +272,70 @@
 
   function drawBossHud() {
     if (!activeBoss) return;
-    let hp = 0, maxHp = 0;
-    for (const carrier of activeBoss.carriers) { hp += carrier.hp; maxHp += carrier.maxHp; }
+    let hp = 0;
+    let maxHp = 0;
+    for (const carrier of activeBoss.carriers) {
+      hp += carrier.hp;
+      maxHp += carrier.maxHp;
+    }
+
     const barWidth = Math.min(width * 0.72, S(300));
     const barHeight = S(9);
-    const x = (width - barWidth) / 2, y = S(44);
+    const x = (width - barWidth) / 2;
+    const y = S(44);
+
     ctx.save();
     ctx.textAlign = 'center';
     ctx.font = `bold ${Math.max(11, S(12))}px sans-serif`;
-    ctx.fillStyle = '#fff'; ctx.globalAlpha = 0.9; ctx.fillText(BOSS_NAME, cx, y - S(11)); ctx.globalAlpha = 1;
-    ctx.fillStyle = 'rgba(255,255,255,.14)'; ctx.fillRect(x, y, barWidth, barHeight);
-    ctx.fillStyle = '#ff3d3d'; ctx.fillRect(x, y, barWidth * clamp(hp / maxHp, 0, 1), barHeight);
+    ctx.fillStyle = '#fff';
+    ctx.globalAlpha = 0.9;
+    ctx.fillText(BOSS_NAME, cx, y - S(11));
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = 'rgba(255,255,255,.14)';
+    ctx.fillRect(x, y, barWidth, barHeight);
+    ctx.fillStyle = '#ff3d3d';
+    ctx.fillRect(x, y, barWidth * clamp(hp / maxHp, 0, 1), barHeight);
     ctx.restore();
   }
 
   function addMuzzleFlash(x, y, angle, size) {
-    if (activeBoss) activeBoss.muzzleFlashes.push({ x, y, angle, size, until: activeBoss.now + MUZZLE_FLASH_MS });
+    if (!activeBoss) return;
+    activeBoss.muzzleFlashes.push({
+      x,
+      y,
+      angle,
+      size,
+      until: activeBoss.now + MUZZLE_FLASH_MS
+    });
   }
 
   function drawMuzzleFlashes() {
     if (!activeBoss || !activeBoss.muzzleFlashes.length) return;
-    const now = activeBoss.now, flashes = activeBoss.muzzleFlashes;
+    const now = activeBoss.now;
+    const flashes = activeBoss.muzzleFlashes;
+
     ctx.save();
     for (let i = flashes.length - 1; i >= 0; i--) {
       const flash = flashes[i];
-      if (flash.until <= now) { flashes.splice(i, 1); continue; }
+      if (flash.until <= now) {
+        flashes.splice(i, 1);
+        continue;
+      }
       const life = (flash.until - now) / MUZZLE_FLASH_MS;
-      ctx.save(); ctx.translate(flash.x, flash.y); ctx.rotate(flash.angle); ctx.globalAlpha = life; ctx.strokeStyle = '#fff'; ctx.lineWidth = S(2.5);
-      ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, -S(flash.size)); ctx.lineTo(S(flash.size * 0.38), 0); ctx.lineTo(0, S(flash.size)); ctx.closePath(); ctx.stroke(); ctx.restore();
+      ctx.save();
+      ctx.translate(flash.x, flash.y);
+      ctx.rotate(flash.angle);
+      ctx.globalAlpha = life;
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = S(2.5);
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(0, -S(flash.size));
+      ctx.lineTo(S(flash.size * 0.38), 0);
+      ctx.lineTo(0, S(flash.size));
+      ctx.closePath();
+      ctx.stroke();
+      ctx.restore();
     }
     ctx.restore();
   }
@@ -210,45 +352,32 @@
     if (count < BOSS_BULLET_CAP) enemyBullets.push(bullet);
   }
 
-  function fireEmitter(emitter, lane) {
-    const targetY = height * BARRAGE_TARGET_Y_RATIO;
-    const laneWidth = width / BARRAGE_LANES;
-    const targetX = laneWidth * (lane + 0.5);
-    const dy = Math.max(S(40), targetY - emitter.y);
-    const vy = S(BARRAGE_SPEED_Y);
-    const travel = dy / vy;
-    const vx = (targetX - emitter.x) / Math.max(1, travel);
-    addBossBullet(createBossBullet(emitter.x, emitter.y, vx, vy));
-    addMuzzleFlash(emitter.x, emitter.y, Math.atan2(vy, vx), emitter.size || 9);
-  }
-
   function fireDiagonalBarrage() {
     if (!activeBoss) return;
+
+    // This is intentionally the old barrage geometry. The only change is
+    // that every stream now has a visible fixed drone at its origin.
+    const laneSpacing = Math.max(S(BARRAGE_LANE_SPACING), width / (BARRAGE_LANES + 1));
+    const startX = cx - laneSpacing * ((BARRAGE_LANES - 1) / 2);
     const direction = activeBoss.barrageStep % 2 === 0 ? 1 : -1;
-    const lanes = [];
-    for (let lane = 0; lane < BARRAGE_LANES; lane++) if (!BARRAGE_GAP_LANES.has(lane)) lanes.push(lane);
 
-    const emitters = [];
-    for (const carrier of activeBoss.carriers) {
-      if (carrier.dead) continue;
-      emitters.push({ x: carrier.x - carrier.width * 0.55, y: carrier.y + carrier.length * 0.44, size: 8 });
-      emitters.push({ x: carrier.x + carrier.width * 0.55, y: carrier.y + carrier.length * 0.44, size: 8 });
+    let firingDroneIndex = 0;
+    for (let lane = 0; lane < BARRAGE_LANES; lane++) {
+      if (BARRAGE_GAP_LANES.has(lane)) continue;
+
+      const x = startX + lane * laneSpacing;
+      const vx = S(BARRAGE_SPEED_X * direction);
+      const vy = S(BARRAGE_SPEED_Y);
+      const firingDrone = activeBoss.barrageDrones[firingDroneIndex++];
+      const y = firingDrone ? firingDrone.y + S(10) : S(28);
+
+      addBossBullet(createBossBullet(x, y, vx, vy));
+      if (firingDrone) {
+        firingDrone.flashUntil = activeBoss.now + MUZZLE_FLASH_MS;
+        addMuzzleFlash(firingDrone.x, firingDrone.y + S(9), Math.atan2(vy, vx), 7);
+      }
     }
 
-    for (let i = 0; i < lanes.length && i < emitters.length; i++) {
-      const laneIndex = direction > 0 ? lanes[i] : lanes[lanes.length - 1 - i];
-      fireEmitter(emitters[i], laneIndex);
-    }
-
-    // One drone per carrier fires a supporting stream, using the same diagonal family.
-    for (let i = 0; i < activeBoss.carriers.length; i++) {
-      const carrier = activeBoss.carriers[i];
-      if (carrier.dead) continue;
-      const drone = carrier.drones[(activeBoss.barrageStep + i) % DRONES_PER_CARRIER];
-      if (!drone || drone.dead) continue;
-      const laneIndex = lanes[(activeBoss.barrageStep + i * 2) % lanes.length];
-      fireEmitter({ x: drone.x, y: drone.y, size: 6 }, direction > 0 ? laneIndex : lanes[lanes.length - 1 - (laneIndex % lanes.length)]);
-    }
     activeBoss.barrageStep++;
   }
 
@@ -261,7 +390,9 @@
     }
   }
 
-  function replaceDrone(carrier, index) { carrier.drones[index] = new BossDrone(carrier, index); }
+  function replaceDrone(carrier, index) {
+    carrier.drones[index] = new BossDrone(carrier, index);
+  }
 
   function updateDroneRespawns(carrier) {
     if (carrier.dead) return;
@@ -276,26 +407,45 @@
   function processBossCollisions() {
     if (!activeBoss || !player) return;
     const pb = player.b();
+
     for (const carrier of activeBoss.carriers) {
       if (carrier.dead) continue;
+
       for (let i = bullets.length - 1; i >= 0; i--) {
         const bullet = bullets[i];
         if (!overlap(carrier.b(), bullet.b())) continue;
-        damageBossTarget(carrier, bullet.damage || 1); bullets.splice(i, 1);
-        if (carrier.dead) { for (const drone of carrier.drones) if (drone) drone.dead = true; break; }
+        damageBossTarget(carrier, bullet.damage || 1);
+        bullets.splice(i, 1);
+        if (carrier.dead) {
+          for (const drone of carrier.drones) if (drone) drone.dead = true;
+          break;
+        }
       }
+
       for (let i = carrier.drones.length - 1; i >= 0; i--) {
         const drone = carrier.drones[i];
         if (!drone || drone.dead) continue;
+
         for (let j = bullets.length - 1; j >= 0; j--) {
           if (!overlap(drone.b(), bullets[j].b())) continue;
-          damageBossTarget(drone, bullets[j].damage || 1); bullets.splice(j, 1);
-          if (drone.dead) { drone.respawnAt = activeBoss.now + DRONE_RESPAWN_MS; break; }
+          damageBossTarget(drone, bullets[j].damage || 1);
+          bullets.splice(j, 1);
+          if (drone.dead) {
+            drone.respawnAt = activeBoss.now + DRONE_RESPAWN_MS;
+            break;
+          }
         }
-        if (!drone.dead && overlap(pb, drone.b())) { damage(); drone.dead = true; drone.respawnAt = activeBoss.now + DRONE_RESPAWN_MS; }
+
+        if (!drone.dead && overlap(pb, drone.b())) {
+          damage();
+          drone.dead = true;
+          drone.respawnAt = activeBoss.now + DRONE_RESPAWN_MS;
+        }
       }
+
       if (overlap(pb, carrier.b())) damage();
     }
+
     if (activeBoss.carriers.every(carrier => carrier.dead)) finishBoss();
   }
 
@@ -336,31 +486,38 @@
     const now = Date.now();
     if (bossTriggerAt === null) bossTriggerAt = bossStartTime();
     if (!activeBoss && !bossCompleted && now >= bossTriggerAt) startBoss();
+
     baseUpdate.call(this);
     if (!activeBoss) return;
 
     activeBoss.now = now;
     const f = now < slowUntil ? 0.32 : 1;
     activeBoss.orbitPhase += DRONE_ORBIT_SPEED * f;
+
     for (const carrier of activeBoss.carriers) {
       if (!carrier.dead) carrier.update(f);
       updateDroneRespawns(carrier);
     }
+
     if (now >= activeBoss.nextBarrageAt) {
       fireDiagonalBarrage();
       activeBoss.nextBarrageAt = now + BARRAGE_INTERVAL;
     }
+
     processBossCollisions();
   };
 
   window.draw = function () {
     baseDraw.call(this);
     if (!activeBoss) return;
+
     for (const carrier of activeBoss.carriers) {
       if (carrier.dead) continue;
       carrier.drones.forEach(drone => { if (drone && !drone.dead) drone.draw(); });
       carrier.draw();
     }
+
+    for (const drone of activeBoss.barrageDrones) drone.draw(activeBoss.now);
     drawMuzzleFlashes();
     drawBossHud();
   };

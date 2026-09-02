@@ -20,20 +20,19 @@
   const baseSpawn = window.spawn;
   const baseUpdate = window.update;
   const baseDraw = window.draw;
-  const baseCollisions = window.collisions;
   const baseResetGame = window.resetGame;
 
   let activeBoss = null;
   let bossTriggerAt = null;
 
-  function ghostPatternTime() {
+  function hunterPatternTime() {
     const patterns = window.INFINITE_TUTORIAL_STATE?.patterns || [];
-    const ghost = patterns.find(pattern => pattern.type === 'ghost');
-    return ghost ? ghost.at : 70;
+    const hunter = patterns.find(pattern => pattern.type === 'hunter');
+    return hunter ? hunter.at : 100;
   }
 
   function bossStartTime() {
-    return ghostPatternTime() + BOSS_TRIGGER_DELAY;
+    return hunterPatternTime() + BOSS_TRIGGER_DELAY;
   }
 
   class BossDrone {
@@ -48,6 +47,7 @@
       this.lastShot = Date.now() + index * 280;
       this.hitUntil = 0;
       this.dead = false;
+      this.respawnAt = 0;
       this.x = carrier.x;
       this.y = carrier.y;
     }
@@ -56,7 +56,6 @@
       this.angle += DRONE_ORBIT_SPEED * f * (this.carrier.direction || 1);
       this.x = this.carrier.x + Math.cos(this.angle) * this.radius;
       this.y = this.carrier.y + Math.sin(this.angle) * this.radius;
-
       const now = Date.now();
       if (now - this.lastShot >= DRONE_FIRE_INTERVAL) {
         fireBossRandomBurst(this.x, this.y, 2, 4.25);
@@ -112,13 +111,11 @@
       if (this.y < this.targetY) this.y = Math.min(this.targetY, this.y + S(0.72) * f);
       this.x += Math.sin(this.phase) * S(0.32) * f;
       this.x = clamp(this.x, this.size + S(12), width - this.size - S(12));
-
       const now = Date.now();
       if (now - this.lastShot >= BOSS_FIRE_INTERVAL) {
         fireBossRing(this.x, this.y, BOSS_BULLET_COUNT, BOSS_BULLET_SPEED, this.index * 0.18);
         this.lastShot = now;
       }
-
       for (const drone of this.drones) if (drone && !drone.dead) drone.update(f);
     }
 
@@ -162,8 +159,7 @@
     const boss = {
       name: BOSS_NAME,
       startedAt: Date.now(),
-      carriers: Array.from({ length: CARRIER_COUNT }, (_, index) => new Carrier(index)),
-      completed: false
+      carriers: Array.from({ length: CARRIER_COUNT }, (_, index) => new Carrier(index))
     };
     for (const carrier of boss.carriers) {
       for (let i = 0; i < DRONES_PER_CARRIER; i++) carrier.drones.push(new BossDrone(carrier, i));
@@ -226,10 +222,9 @@
   }
 
   function damageBossTarget(target, amount) {
-    target.hp -= amount;
+    target.hp = Math.max(0, target.hp - amount);
     target.hitUntil = Date.now() + 90;
-    if (target.hp <= 0) {
-      target.hp = 0;
+    if (target.hp === 0) {
       target.dead = true;
       burst(target.x, target.y, target.central ? '#ff3d3d' : '#ff9a3d', target.central ? 45 : 28);
     }
@@ -240,6 +235,7 @@
   }
 
   function updateDroneRespawns(carrier) {
+    if (carrier.dead) return;
     for (let i = 0; i < carrier.drones.length; i++) {
       const drone = carrier.drones[i];
       if (!drone || !drone.dead) continue;
@@ -262,7 +258,6 @@
         bullets.splice(i, 1);
         if (carrier.dead) {
           carrier.drones.forEach(drone => { if (drone) drone.dead = true; });
-          if (carrier.central) activeBoss.completed = true;
           break;
         }
       }
@@ -286,10 +281,10 @@
         }
       }
 
-      if (!carrier.dead && overlap(pb, carrier.b())) damage();
+      if (overlap(pb, carrier.b())) damage();
     }
 
-    if (activeBoss?.completed) finishBoss();
+    if (activeBoss.carriers.every(carrier => carrier.dead)) finishBoss();
   }
 
   function startBoss() {
@@ -307,11 +302,14 @@
     activeBoss = null;
   }
 
+  // Boss owns the spawn gate only while active; the existing spawn system remains untouched.
   window.spawn = function () {
     if (activeBoss) return;
     baseSpawn();
   };
 
+  // The core engine keeps ownership of collisions. We deliberately do not replace
+  // window.collisions because game.js calls its lexical collisions() function directly.
   window.update = function () {
     if (bossTriggerAt === null) bossTriggerAt = bossStartTime();
     if (!activeBoss && secs() >= bossTriggerAt) startBoss();
@@ -334,11 +332,6 @@
       carrier.draw();
     }
     drawBossHud();
-  };
-
-  window.collisions = function () {
-    baseCollisions.call(this);
-    processBossCollisions();
   };
 
   window.resetGame = function () {

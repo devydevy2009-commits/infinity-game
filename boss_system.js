@@ -190,39 +190,81 @@
       ctx.rotate(Math.sin(this.phase) * 0.035);
       ctx.strokeStyle = color;
       ctx.lineWidth = S(this.central ? 3.2 : 2.5);
+      ctx.lineJoin = this.central ? 'miter' : 'round';
 
-      // Long spacecraft silhouette: pointed bow, elongated hull, engine tail.
-      ctx.beginPath();
-      ctx.moveTo(0, -l * 0.58);
-      ctx.lineTo(w * 0.62, -l * 0.28);
-      ctx.lineTo(w * 0.48, l * 0.34);
-      ctx.lineTo(w * 0.22, l * 0.49);
-      ctx.lineTo(0, l * 0.58);
-      ctx.lineTo(-w * 0.22, l * 0.49);
-      ctx.lineTo(-w * 0.48, l * 0.34);
-      ctx.lineTo(-w * 0.62, -l * 0.28);
-      ctx.closePath();
-      ctx.stroke();
+      if (this.central) {
+        // Aggressive triangular flagship: broad armored rear and very pointed bow.
+        ctx.beginPath();
+        ctx.moveTo(0, -l * 0.72);
+        ctx.lineTo(w * 0.62, l * 0.34);
+        ctx.lineTo(w * 0.95, l * 0.48);
+        ctx.lineTo(w * 0.46, l * 0.57);
+        ctx.lineTo(w * 0.28, l * 0.69);
+        ctx.lineTo(-w * 0.28, l * 0.69);
+        ctx.lineTo(-w * 0.46, l * 0.57);
+        ctx.lineTo(-w * 0.95, l * 0.48);
+        ctx.lineTo(-w * 0.62, l * 0.34);
+        ctx.closePath();
+        ctx.stroke();
 
-      ctx.beginPath();
-      ctx.moveTo(-w * 0.40, -l * 0.12);
-      ctx.lineTo(w * 0.40, -l * 0.12);
-      ctx.moveTo(-w * 0.30, l * 0.18);
-      ctx.lineTo(w * 0.30, l * 0.18);
-      ctx.stroke();
+        // Layered deck and central command spine.
+        ctx.beginPath();
+        ctx.moveTo(0, -l * 0.55);
+        ctx.lineTo(w * 0.44, l * 0.30);
+        ctx.lineTo(0, l * 0.47);
+        ctx.lineTo(-w * 0.44, l * 0.30);
+        ctx.closePath();
+        ctx.stroke();
 
-      ctx.beginPath();
-      ctx.arc(0, -l * 0.02, w * 0.34, 0, Math.PI * 2);
-      ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(-w * 0.54, l * 0.39);
+        ctx.lineTo(w * 0.54, l * 0.39);
+        ctx.moveTo(-w * 0.40, l * 0.52);
+        ctx.lineTo(w * 0.40, l * 0.52);
+        ctx.moveTo(0, -l * 0.18);
+        ctx.lineTo(0, l * 0.28);
+        ctx.moveTo(-w * 0.22, l * 0.02);
+        ctx.lineTo(w * 0.22, l * 0.02);
+        ctx.stroke();
 
-      ctx.beginPath();
-      ctx.moveTo(-w * 0.26, l * 0.45);
-      ctx.lineTo(-w * 0.18, l * 0.68);
-      ctx.moveTo(w * 0.26, l * 0.45);
-      ctx.lineTo(w * 0.18, l * 0.68);
-      ctx.stroke();
+        // Four separated rear engine channels.
+        for (const ex of [-0.36, -0.12, 0.12, 0.36]) {
+          ctx.beginPath();
+          ctx.moveTo(w * ex, l * 0.55);
+          ctx.lineTo(w * ex, l * 0.70);
+          ctx.stroke();
+        }
+      } else {
+        // Side carrier: elongated, squared technological cigar silhouette.
+        ctx.beginPath();
+        ctx.moveTo(0, -l * 0.62);
+        ctx.lineTo(w * 0.70, -l * 0.43);
+        ctx.lineTo(w * 0.84, l * 0.33);
+        ctx.lineTo(w * 0.58, l * 0.53);
+        ctx.lineTo(w * 0.32, l * 0.62);
+        ctx.lineTo(-w * 0.32, l * 0.62);
+        ctx.lineTo(-w * 0.58, l * 0.53);
+        ctx.lineTo(-w * 0.84, l * 0.33);
+        ctx.lineTo(-w * 0.70, -l * 0.43);
+        ctx.closePath();
+        ctx.stroke();
+
+        // Longitudinal spine and squared armour sections.
+        ctx.beginPath();
+        ctx.moveTo(-w * 0.56, -l * 0.17);
+        ctx.lineTo(w * 0.56, -l * 0.17);
+        ctx.moveTo(-w * 0.62, l * 0.16);
+        ctx.lineTo(w * 0.62, l * 0.16);
+        ctx.moveTo(0, -l * 0.43);
+        ctx.lineTo(0, l * 0.48);
+        ctx.moveTo(-w * 0.62, l * 0.34);
+        ctx.lineTo(w * 0.62, l * 0.34);
+        ctx.moveTo(-w * 0.38, l * 0.51);
+        ctx.lineTo(w * 0.38, l * 0.51);
+        ctx.stroke();
+      }
+
       ctx.restore();
-
       drawCarrierBar(this);
     }
 

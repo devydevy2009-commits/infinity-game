@@ -3,13 +3,18 @@
 (() => {
   'use strict';
 
-  const SUPPORT_COUNT = 8;
+  // Must mirror boss_system.js exactly: 10 lanes, with 2 permanent gaps.
+  const BARRAGE_LANES = 10;
+  const GAP_LANES = new Set([3, 7]);
+  const LANE_SPACING = 58;
   const SUPPORT_Y = S(24);
-  const GAP_LANES = new Set([2, 5]);
+  const SUPPORT_SIZE = S(8);
   const state = { drones: [], lastBossActive: false };
 
-  function supportX(index) {
-    return width / SUPPORT_COUNT * (index + 0.5);
+  function laneGeometry() {
+    const spacing = Math.max(S(LANE_SPACING), width / (BARRAGE_LANES + 1));
+    const startX = cx - spacing * ((BARRAGE_LANES - 1) / 2);
+    return { spacing, startX };
   }
 
   function ensureSupportDrones() {
@@ -20,45 +25,43 @@
       return;
     }
     if (!state.lastBossActive) {
-      state.drones = [];
-      for (let lane = 0; lane < SUPPORT_COUNT; lane++) {
+      const { spacing, startX } = laneGeometry();
+      state.drones.length = 0;
+      for (let lane = 0; lane < BARRAGE_LANES; lane++) {
         if (GAP_LANES.has(lane)) continue;
-        state.drones.push({ lane, x: supportX(lane), y: SUPPORT_Y, flashUntil: 0 });
+        state.drones.push({
+          lane,
+          x: startX + lane * spacing,
+          y: SUPPORT_Y
+        });
       }
       state.lastBossActive = true;
     }
-    for (const drone of state.drones) drone.x = supportX(drone.lane);
+
+    // Recalculate only the eight emitter positions; no allocations per frame.
+    const { spacing, startX } = laneGeometry();
+    for (const drone of state.drones) drone.x = startX + drone.lane * spacing;
   }
 
   const baseUpdate = window.update;
   window.update = function () {
     ensureSupportDrones();
     baseUpdate.call(this);
-    if (!window.INFINITE_BOSS_STATE?.active || !state.drones.length) return;
-
-    // The original barrage already has the desired diagonal trajectories.
-    // Only move each newly-created boss bullet from just above the viewport
-    // to its matching visible emitter on its first frame.
-    for (const bullet of enemyBullets) {
-      if (!bullet.bossBullet || bullet._supportEmitterAttached || bullet.y > S(2)) continue;
-      let nearest = state.drones[0];
-      for (let i = 1; i < state.drones.length; i++) {
-        const candidate = state.drones[i];
-        if (Math.abs(candidate.x - bullet.x) < Math.abs(nearest.x - bullet.x)) nearest = candidate;
-      }
-      bullet.x = nearest.x;
-      bullet.y = nearest.y;
-      bullet._supportEmitterAttached = true;
-      nearest.flashUntil = Date.now() + 90;
-    }
   };
 
   function drawSupportDrone(drone) {
-    const s = S(8);
-    const flash = Date.now() < drone.flashUntil;
+    const s = SUPPORT_SIZE;
     ctx.save();
     ctx.translate(drone.x, drone.y);
-    ctx.strokeStyle = flash ? '#fff' : '#ff9a3d';
+
+    // Cover the old diamond emitter underneath, then draw the requested
+    // short chunky cigar silhouette in the same neon line-art style.
+    ctx.fillStyle = '#000';
+    ctx.beginPath();
+    ctx.ellipse(0, 0, s * 1.45, s * 0.85, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = '#ff9a3d';
     ctx.lineWidth = S(1.8);
     ctx.beginPath();
     ctx.moveTo(-s * 1.15, 0);
@@ -66,8 +69,12 @@
     ctx.quadraticCurveTo(s * 0.72, -s * 0.65, s * 1.15, 0);
     ctx.quadraticCurveTo(s * 0.72, s * 0.65, 0, s * 0.52);
     ctx.quadraticCurveTo(-s * 0.72, s * 0.65, -s * 1.15, 0);
-    ctx.closePath(); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(-s * 0.62, 0); ctx.lineTo(s * 0.62, 0); ctx.stroke();
+    ctx.closePath();
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(-s * 0.62, 0);
+    ctx.lineTo(s * 0.62, 0);
+    ctx.stroke();
     ctx.restore();
   }
 

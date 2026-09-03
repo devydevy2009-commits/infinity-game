@@ -1,5 +1,7 @@
 // INFINITY — boss support-emitter visuals.
 // Keeps the original diagonal barrage while giving every beam a visible source.
+// Also fixes the boss trigger's seconds/milliseconds mismatch without modifying
+// the core boss implementation.
 (() => {
   'use strict';
 
@@ -43,10 +45,35 @@
     for (const drone of state.drones) drone.x = startX + drone.lane * spacing;
   }
 
+  const realDateNow = Date.now;
   const baseUpdate = window.update;
+
+  // boss_system.js stores bossTriggerAt in elapsed seconds (120), but its
+  // update compares it with Date.now() in epoch milliseconds. We correct only
+  // that first comparison each frame. All subsequent Date.now() calls receive
+  // the real timestamp, so boss movement, barrage timing and the base engine
+  // continue to use milliseconds exactly as before.
   window.update = function () {
     ensureSupportDrones();
-    baseUpdate.call(this);
+
+    // Read the elapsed game time before temporarily intercepting Date.now().
+    const elapsedSeconds = typeof secs === 'function' ? secs() : 0;
+    let firstDateNowCall = true;
+
+    Date.now = function () {
+      if (firstDateNowCall) {
+        firstDateNowCall = false;
+        Date.now = realDateNow;
+        return elapsedSeconds;
+      }
+      return realDateNow();
+    };
+
+    try {
+      return baseUpdate.call(this);
+    } finally {
+      Date.now = realDateNow;
+    }
   };
 
   function drawSupportDrone(drone) {

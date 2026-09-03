@@ -88,7 +88,7 @@
     active: false,
     startedAt: 0,
     phase: [0, 1.4, 2.8],
-    y: [-95, -107, -107]
+    y: [-S(95), -S(107), -S(107)]
   };
 
   function syncCarrierVisuals(now) {
@@ -101,7 +101,7 @@
       carrierVisual.active = true;
       carrierVisual.startedAt = now;
       carrierVisual.phase = [0, 1.4, 2.8];
-      carrierVisual.y = [-95, -107, -107];
+      carrierVisual.y = [-S(95), -S(107), -S(107)];
     }
 
     const elapsed = Math.max(0, now - carrierVisual.startedAt);
@@ -116,7 +116,6 @@
   function coverCarrier(x, y, length, width) {
     ctx.save();
     ctx.translate(x, y);
-    ctx.rotate(Math.sin(0) * 0.035);
     ctx.fillStyle = '#000';
     ctx.beginPath();
     ctx.moveTo(0, -length * 0.66);
@@ -157,7 +156,6 @@
     ctx.closePath();
     ctx.stroke();
 
-    // Layered armored deck.
     ctx.beginPath();
     ctx.moveTo(0, -l * 0.55);
     ctx.lineTo(w * 0.44, l * 0.30);
@@ -173,7 +171,6 @@
     ctx.lineTo(w * 0.40, l * 0.52);
     ctx.stroke();
 
-    // Command spine / bridge.
     ctx.beginPath();
     ctx.moveTo(0, -l * 0.18);
     ctx.lineTo(0, l * 0.28);
@@ -181,7 +178,6 @@
     ctx.lineTo(w * 0.22, l * 0.02);
     ctx.stroke();
 
-    // Rear engine slots.
     for (const ex of [-0.36, -0.12, 0.12, 0.36]) {
       ctx.beginPath();
       ctx.moveTo(w * ex, l * 0.55);
@@ -201,7 +197,6 @@
     ctx.lineWidth = S(2.5);
     ctx.lineJoin = 'round';
 
-    // Elongated, squared technological cigar: blunt/broad rear, tapered bow.
     ctx.beginPath();
     ctx.moveTo(0, -l * 0.62);
     ctx.lineTo(w * 0.70, -l * 0.43);
@@ -224,7 +219,6 @@
     ctx.lineTo(0, l * 0.48);
     ctx.stroke();
 
-    // Tech panels and rear engine divisions.
     ctx.beginPath();
     ctx.moveTo(-w * 0.62, l * 0.34);
     ctx.lineTo(w * 0.62, l * 0.34);
@@ -281,9 +275,6 @@
   window.draw = function () {
     baseDraw.call(this);
     if (!window.INFINITE_BOSS_STATE?.active) return;
-
-    // baseDraw already rendered the real carriers. Cover only their old
-    // silhouettes and replace them with the new visual language.
     drawCarrierOverlay(realDateNow());
     for (const drone of state.drones) drawSupportDrone(drone);
   };

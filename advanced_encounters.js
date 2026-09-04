@@ -17,7 +17,8 @@
     nextHunterAt: 0,
     devTime: null,
     devPanel: null,
-    devLiveText: null
+    devLiveText: null,
+    testGhostsSpawned: false
   };
 
   const baseUpdate = window.update;
@@ -106,8 +107,26 @@
     state.missiles.push(new GhostMissile(ghost));
   }
 
+  function ensureDeveloperGhosts() {
+    if (!Number.isFinite(state.devTime) || state.devTime < ADVANCED_GHOST_AT || state.testGhostsSpawned || isBossActive()) return;
+    const ghosts = enemies.filter(e => e.kind === 'ghost');
+    if (ghosts.length < 3) {
+      const positions = [0.25, 0.50, 0.75];
+      for (const ratio of positions) {
+        const ghost = new Enemy('ghost');
+        ghost.x = width * ratio;
+        ghost.y = S(70);
+        ghost.vx = 0;
+        ghost.vy = S(0.65);
+        enemies.push(ghost);
+      }
+    }
+    state.testGhostsSpawned = true;
+  }
+
   function updateGhosts(now) {
     if (eventSeconds() < ADVANCED_GHOST_AT || isBossActive()) return;
+    ensureDeveloperGhosts();
     for (const ghost of enemies) {
       if (ghost.kind !== 'ghost') continue;
       if (!ghost.advancedShotAt) ghost.advancedShotAt = now + 700 + Math.random() * 900;
@@ -207,8 +226,8 @@
     };
   }
 
-  // Fix the carrier orientation from the moment it enters the screen. The old
-  // patch waited for a positive Y range, so the flagship briefly appeared upside down.
+  // The central carrier's real gameplay position is untouched. This visual correction
+  // applies from its entrance, including while it is still above the normal target Y.
   const realTranslate = ctx.translate.bind(ctx);
   const realRotate = ctx.rotate.bind(ctx);
   const oldDraw = window.draw;
@@ -238,11 +257,17 @@
 
   function updateDeveloperPanel() {
     if (!state.devPanel) return;
-    state.devLiveText.textContent = Number.isFinite(state.devTime) ? `Test time: ${Math.floor(state.devTime / 60)}:${String(Math.floor(state.devTime % 60)).padStart(2, '0')}` : 'Test time: LIVE';
+    const testLabel = Number.isFinite(state.devTime) ? `Test time: ${Math.floor(state.devTime / 60)}:${String(Math.floor(state.devTime % 60)).padStart(2, '0')}` : 'Test time: LIVE';
+    state.devLiveText.textContent = testLabel;
+    if (Number.isFinite(state.devTime) && typeof timerEl !== 'undefined') {
+      const t = Math.floor(state.devTime);
+      timerEl.textContent = 'Time: ' + Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0');
+    }
   }
 
   function setDevTime(value) {
     state.devTime = value === null ? null : Math.max(0, Number(value) || 0);
+    state.testGhostsSpawned = false;
     updateDeveloperPanel();
   }
 
@@ -299,6 +324,7 @@
     state.missiles.length = 0;
     state.nextHunterAt = 0;
     state.devTime = null;
+    state.testGhostsSpawned = false;
     baseResetGame.call(this);
     updateDeveloperPanel();
   };

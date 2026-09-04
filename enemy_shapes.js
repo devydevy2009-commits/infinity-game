@@ -1,5 +1,5 @@
 // INFINITY — lightweight enemy silhouette layer.
-// Replaces only the requested silhouettes; gameplay logic remains untouched.
+// Custom silhouettes stay visible during hit feedback; no fallback to legacy shapes.
 (() => {
   'use strict';
 
@@ -20,15 +20,14 @@
     ctx.restore();
   }
 
-  function drawGhost(enemy) {
+  function drawGhost(enemy, color) {
     const s = enemy.size;
     ctx.save();
     ctx.translate(enemy.x, enemy.y);
     ctx.rotate(enemy.rot);
-    ctx.strokeStyle = '#8b8b8b';
+    ctx.strokeStyle = color;
     ctx.lineWidth = S(2.4);
     ctx.globalAlpha = 0.78;
-    // Broad flying-wing silhouette: a vague B-2-like reference.
     ctx.beginPath();
     ctx.moveTo(-s * 1.55, s * 0.18);
     ctx.lineTo(-s * 0.92, -s * 0.42);
@@ -49,22 +48,15 @@
     ctx.lineTo(0, -s * 0.20);
     ctx.lineTo(s * 0.58, s * 0.02);
     ctx.stroke();
-    const advanced = tier() >= 10;
-    ctx.globalAlpha = advanced ? 0.45 : 0.25;
-    ctx.beginPath(); ctx.arc(0, 0, s * 1.42, 0, Math.PI * 2); ctx.stroke();
-    if (advanced) {
-      ctx.globalAlpha = 0.55;
-      ctx.beginPath(); ctx.moveTo(-s * 0.32, s * 0.10); ctx.lineTo(s * 0.32, s * 0.10); ctx.stroke();
-    }
     ctx.restore();
   }
 
-  function drawHunter(enemy) {
+  function drawHunter(enemy, color) {
     const s = enemy.size;
     ctx.save();
     ctx.translate(enemy.x, enemy.y);
     ctx.rotate(enemy.rot);
-    ctx.strokeStyle = kindColor('hunter');
+    ctx.strokeStyle = color;
     ctx.lineWidth = S(2.2);
     ctx.beginPath();
     ctx.moveTo(0, -s * 1.15);
@@ -76,7 +68,6 @@
     ctx.closePath();
     ctx.stroke();
     ctx.beginPath(); ctx.moveTo(-s * 0.48, s * 0.18); ctx.lineTo(s * 0.48, s * 0.18); ctx.stroke();
-    // Hollow squared boomerang/U tail.
     ctx.beginPath();
     ctx.moveTo(-s * 0.58, s * 0.50); ctx.lineTo(-s * 0.92, s * 0.88); ctx.lineTo(-s * 0.40, s * 0.76);
     ctx.moveTo(s * 0.58, s * 0.50); ctx.lineTo(s * 0.92, s * 0.88); ctx.lineTo(s * 0.40, s * 0.76);
@@ -86,14 +77,13 @@
     healthBar(enemy);
   }
 
-  function drawDrone(enemy) {
+  function drawDrone(enemy, color) {
     const s = enemy.size;
     ctx.save();
     ctx.translate(enemy.x, enemy.y);
     ctx.rotate(enemy.rot);
-    ctx.strokeStyle = kindColor('drone');
+    ctx.strokeStyle = color;
     ctx.lineWidth = S(2.2);
-    // Short, chunky cigar/capsule silhouette.
     ctx.beginPath();
     ctx.moveTo(-s * 0.92, 0);
     ctx.quadraticCurveTo(-s * 0.68, -s * 0.58, 0, -s * 0.62);
@@ -114,9 +104,10 @@
   Enemy.prototype.draw = function () {
     const now = Date.now();
     const flashing = now < this.hitUntil && Math.floor(now / 70) % 2 === 0;
-    if (!flashing && this.kind === 'ghost') return drawGhost(this);
-    if (!flashing && this.kind === 'hunter') return drawHunter(this);
-    if (!flashing && this.kind === 'drone') return drawDrone(this);
+    const color = flashing ? '#fff' : kindColor(this.kind);
+    if (this.kind === 'ghost') return drawGhost(this, color);
+    if (this.kind === 'hunter') return drawHunter(this, color);
+    if (this.kind === 'drone') return drawDrone(this, color);
     baseDraw.call(this);
   };
 })();

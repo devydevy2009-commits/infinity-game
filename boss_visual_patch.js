@@ -62,9 +62,7 @@
     }
   };
 
-  // Restore the normal enemy hit feedback: the existing hitUntil flash is
-  // allowed to render again. No damage, particles or collision behavior changes.
-  // Ghosts are visual-only reoriented toward the player and no longer spin.
+  // Keep the normal enemy hit feedback and orient ghosts toward the player.
   if (typeof Enemy !== 'undefined' && Enemy.prototype) {
     const baseEnemyUpdate = Enemy.prototype.update;
     const baseEnemyDraw = Enemy.prototype.draw;
@@ -91,7 +89,6 @@
       ctx.lineWidth = S(2.8);
       ctx.globalAlpha = 0.7;
 
-      // Directional ghost silhouette with a clear pointed nose.
       ctx.beginPath();
       ctx.moveTo(0, -s * 1.22);
       ctx.lineTo(s * 0.62, -s * 0.35);
@@ -113,9 +110,8 @@
       ctx.restore();
     };
 
-    // The central Star-Destroyer drawing in boss_system.js uses +Y as its rear.
-    // Add exactly 180° to its existing visual rotation, without touching its
-    // position, collisions, HP, drones, bars or barrage behavior.
+    // The old condition only corrected the flagship after it reached its target Y.
+    // Keep the correction active throughout the entrance so it is never briefly inverted.
     const realRotate = ctx.rotate.bind(ctx);
     const realTranslate = ctx.translate.bind(ctx);
     let centralCarrierRotationPending = false;
@@ -129,7 +125,7 @@
       centralCarrierRotationPending = false;
 
       ctx.translate = function (x, y) {
-        centralCarrierRotationPending = Math.abs(x - cx) < S(45) && y > height * 0.15 && y < height * 0.24;
+        centralCarrierRotationPending = Math.abs(x - cx) < S(45) && y < height * 0.42;
         return realTranslate(x, y);
       };
       ctx.rotate = function (angle) {

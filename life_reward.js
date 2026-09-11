@@ -72,9 +72,6 @@
     return true;
   };
 
-  // Extend collisions only. Do not wrap resetGame: game.js calls resetGame()
-  // through the global binding, and wrapping it here would access powerups
-  // before game.js has initialized that let binding.
   const baseCollisions = collisions;
   collisions = function () {
     const rewards = powerups.filter(p => p.isLifeReward);
@@ -91,9 +88,9 @@
           reward.destroyed = true;
           burst(reward.x, reward.y, '#39ff72', 30);
           lives++;
-          livesEl.textContent = 'Lives: ' + lives;
+          setHud(livesEl, 'lives', 'Lives', lives);
           score += 500;
-          scoreEl.textContent = 'Score: ' + score;
+          setHud(scoreEl, 'score', 'Score', score);
           break;
         }
       }
@@ -106,7 +103,7 @@
   let hunterRewardArmed = false;
   let hunterRewardDropped = false;
 
-  setInterval(() => {
+  function updateRewardState() {
     const state = window.INFINITE_TUTORIAL_STATE;
     if (!state) return;
 
@@ -120,5 +117,11 @@
     if (hunterRewardArmed && !hunterRewardDropped && state.index >= 4 && !state.activeType) {
       hunterRewardDropped = !!window.spawnLifeReward();
     }
-  }, 100);
+  }
+
+  const baseUpdate = window.update;
+  window.update = function () {
+    baseUpdate.call(this);
+    if (running && !paused) updateRewardState();
+  };
 })();

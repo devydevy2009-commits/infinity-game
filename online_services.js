@@ -165,6 +165,18 @@
     }
   }
 
+  function openScoresFromSettings() {
+    settingsMenu.classList.add('hidden');
+    scoreboardMenu.classList.remove('hidden');
+    renderOnlineScores();
+  }
+
+  function openScoresFromGameOver() {
+    gameOverMenu.classList.add('hidden');
+    scoreboardMenu.classList.remove('hidden');
+    renderOnlineScores();
+  }
+
   function wireUI() {
     $('accountBtn')?.addEventListener('click', openAuth);
     $('closeAuthBtn')?.addEventListener('click', closeAuth);
@@ -172,10 +184,8 @@
     $('registerBtn')?.addEventListener('click', () => submitAuth('register'));
     $('logoutBtn')?.addEventListener('click', logout);
     $('saveScoreBtn').onclick = publishCurrentScore;
-
-    const showScores = () => renderOnlineScores();
-    $('scoresBtn')?.addEventListener('click', showScores);
-    $('showScoresFromGameOverBtn')?.addEventListener('click', showScores);
+    $('scoresBtn').onclick = openScoresFromSettings;
+    $('showScoresFromGameOverBtn').onclick = openScoresFromGameOver;
     $('scoreboardVersion') && ($('scoreboardVersion').textContent = `Build ${version}`);
     $('gameVersion') && ($('gameVersion').textContent = version);
   }

@@ -2,36 +2,38 @@
 (() => {
   'use strict';
 
-  // Hunters: one projectile per volley and at least 2.2s between volleys.
-  // This sits after the tutorial layer so it also applies to the split/surround phase.
-  const baseHunterUpdate = Enemy.prototype.updateHunter;
+  const hooks = window.INFINITY_GAME_HOOKS;
+  if (!hooks) throw new Error('INFINITY_GAME_HOOKS is not available');
+
+  // Keep directed enemy volleys to one projectile. Tactical firing cadence is
+  // owned by tactical_balance.js, so this layer does not wrap Hunter.update again.
   const baseDirectedBurst = fireDirectedBurst;
-  fireDirectedBurst = function(x, y, count, spread, speed) {
+  fireDirectedBurst = function (x, y, count, spread, speed) {
     return baseDirectedBurst(x, y, 1, spread, speed);
   };
 
-  Enemy.prototype.updateHunter = function(f) {
-    const now = Date.now();
-    const canShoot = now - (this.lastShot || 0) >= 2200;
-    if (!canShoot) this.lastShot = now;
-    baseHunterUpdate.call(this, f);
-    if (!canShoot) this.lastShot = now;
-  };
-
-  // Ghost tutorial: widen the existing line and increase its stagger.
-  // We alter only tutorial offsets; no spawn scheduler or formation owner is touched.
+  // Ghost tutorial: widen the existing line and increase its stagger once per pattern.
   let tunedPattern = null;
+
   function tuneGhostPattern() {
-    if (!window.INFINITE_TUTORIAL_STATE || window.INFINITE_TUTORIAL_STATE.activeType !== 'ghost') return;
-    const members = enemies.filter(e => e.tutorialPattern?.type === 'ghost');
+    const tutorial = window.INFINITE_TUTORIAL_STATE;
+    if (!tutorial || tutorial.activeType !== 'ghost') {
+      tunedPattern = null;
+      return;
+    }
+
+    const members = enemies.filter(enemy => enemy.tutorialPattern?.type === 'ghost');
     if (!members.length || members[0].tutorialPattern === tunedPattern) return;
+
     tunedPattern = members[0].tutorialPattern;
-    const gapX = S(54), gapY = S(36);
+    const gapX = S(54);
+    const gapY = S(36);
+
     members.forEach((enemy, index) => {
       enemy.tutorialOffset.x = index * gapX;
       enemy.tutorialOffset.y = index % 2 === 0 ? -gapY : gapY;
     });
   }
 
-  setInterval(tuneGhostPattern, 50);
+  hooks.onUpdate(tuneGhostPattern);
 })();

@@ -11,7 +11,6 @@
   const DRONE_FIRE_INTERVAL = 1950;
   const MAX_HUNTER_DEPTH = 0.68;
   const MAX_ENEMY_SPEED = 3.35;
-  const TOUCH_AHEAD = 25;
   const TOUCH_MOVE_FACTOR = 0.30;
   const PROTECTED_POWERUP_CHANCE = 0.22;
   const FORMATION_MARGIN = 18;
@@ -25,7 +24,6 @@
   const baseEnemyDraw = Enemy.prototype.draw;
   const baseSpawn = spawn;
   const basePowerupDraw = Powerup.prototype.draw;
-  const baseSetTarget = window.setTarget;
   const baseResetGame = window.resetGame;
 
   function enemySpeedCap() { return S(MAX_ENEMY_SPEED + Math.min(tier(), 10) * 0.04); }
@@ -50,6 +48,7 @@
     enemy.maxHp = enemy.hp;
   }
 
+  // Touch/pen smoothing belongs here; target coordinates and touch lead are owned by game.js.
   Player.prototype.update = function (x, y) {
     if (x === undefined || y === undefined || (inputType !== 'touch' && inputType !== 'pen')) return basePlayerUpdate.call(this, x, y);
     const dx = x - this.x, dy = y - this.y;
@@ -278,9 +277,6 @@
     ctx.fillStyle = '#d8f4ff'; ctx.globalAlpha = this.protected ? 0.9 : 0.72; ctx.fillRect(this.x - this.size * 0.16, this.y - this.size * 0.16, this.size * 0.32, this.size * 0.32); ctx.restore();
   };
 
-  if (typeof baseSetTarget === 'function') {
-    window.setTarget = function (e) { baseSetTarget(e); if (e.pointerType === 'touch') targetY = e.clientY - S(TOUCH_AHEAD); };
-  }
   if (typeof baseResetGame === 'function') {
     window.resetGame = function () { formationAnchors.clear(); baseResetGame(); };
   }

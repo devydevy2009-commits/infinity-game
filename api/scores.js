@@ -1,8 +1,8 @@
 import { getSql } from '../lib/db.js';
-import { getCurrentUser, json, readJson } from '../lib/auth.js';
+import { getCurrentUser, json, readJson, requestError } from '../lib/auth.js';
+import { GAME_VERSION } from '../lib/config.js';
 
-const VERSION_PATTERN = /^[A-Za-z0-9._+-]{1,32}$/;
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export default async function handler(req, res) {
   try {
@@ -14,7 +14,12 @@ export default async function handler(req, res) {
         FROM scores s
         JOIN users u ON u.id = s.user_id
         ORDER BY s.score DESC, s.survival_time DESC, s.created_at ASC`;
-      return json(res, 200, { scores: rows });
+      return json(
+        res,
+        200,
+        { scores: rows, gameVersion: GAME_VERSION },
+        { cacheControl: 'public, max-age=0, s-maxage=15, stale-while-revalidate=30' }
+      );
     }
 
     if (req.method === 'POST') {
@@ -24,17 +29,19 @@ export default async function handler(req, res) {
       const body = await readJson(req);
       const score = Math.floor(Number(body.score));
       const survivalTime = Math.floor(Number(body.survivalTime));
-      const gameVersion = String(body.gameVersion || '');
       const runId = String(body.runId || '');
 
-      if (!Number.isSafeInteger(score) || score < 0 || score > 2_000_000_000) return json(res, 400, { error: 'Invalid score' });
-      if (!Number.isSafeInteger(survivalTime) || survivalTime < 0 || survivalTime > 86_400) return json(res, 400, { error: 'Invalid survival time' });
-      if (!VERSION_PATTERN.test(gameVersion)) return json(res, 400, { error: 'Invalid game version' });
+      if (!Number.isSafeInteger(score) || score < 0 || score > 2_000_000_000) {
+        return json(res, 400, { error: 'Invalid score' });
+      }
+      if (!Number.isSafeInteger(survivalTime) || survivalTime < 0 || survivalTime > 86_400) {
+        return json(res, 400, { error: 'Invalid survival time' });
+      }
       if (!UUID_PATTERN.test(runId)) return json(res, 400, { error: 'Invalid run id' });
 
       const rows = await sql`
         INSERT INTO scores (user_id, score, survival_time, game_version, run_id)
-        VALUES (${user.id}, ${score}, ${survivalTime}, ${gameVersion}, ${runId})
+        VALUES (${user.id}, ${score}, ${survivalTime}, ${GAME_VERSION}, ${runId})
         ON CONFLICT (run_id) DO NOTHING
         RETURNING id, score, survival_time, game_version, created_at`;
       return json(res, rows.length ? 201 : 200, { score: rows[0] || null });
@@ -42,7 +49,6 @@ export default async function handler(req, res) {
 
     return json(res, 405, { error: 'Method not allowed' });
   } catch (error) {
-    console.error(error);
-    return json(res, 500, { error: 'Scoreboard unavailable' });
+    return requestError(res, error, 'Scoreboard unavailable');
   }
 }

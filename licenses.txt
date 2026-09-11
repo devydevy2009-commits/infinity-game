@@ -1,0 +1,9 @@
+INFINITE
+
+Copyright © 2026 Infinity Game. All rights reserved.
+
+The INFINITE game concept, original source code, original artwork, original visual design, original text and other original creative content in this repository are proprietary to the copyright holder unless otherwise stated.
+
+No permission is granted to copy, redistribute, sublicense, sell, modify, publicly host, or create derivative works from the proprietary game content without prior written authorization.
+
+Third-party software, if any, remains subject to its respective license.

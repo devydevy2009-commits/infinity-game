@@ -1,8 +1,18 @@
 import { getSql } from '../lib/db.js';
-import { createSession, json, readJson, sessionCookie, validatePassword, validateUsername, verifyPassword } from '../lib/auth.js';
+import {
+  createSession,
+  json,
+  readJson,
+  requestError,
+  sessionCookie,
+  validatePassword,
+  validateUsername,
+  verifyPassword
+} from '../lib/auth.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });
+
   try {
     const body = await readJson(req);
     const userInput = validateUsername(body.username);
@@ -16,6 +26,7 @@ export default async function handler(req, res) {
       WHERE username_norm = ${userInput.usernameNorm}
       LIMIT 1`;
     const user = rows[0];
+
     if (!user || !(await verifyPassword(password, user.password_salt, user.password_hash))) {
       return json(res, 401, { error: 'Wrong username or password' });
     }
@@ -25,7 +36,6 @@ export default async function handler(req, res) {
     res.setHeader('Set-Cookie', sessionCookie(token));
     return json(res, 200, { user: { id: user.id, username: user.username } });
   } catch (error) {
-    console.error(error);
-    return json(res, 500, { error: 'Login failed' });
+    return requestError(res, error, 'Login failed');
   }
 }

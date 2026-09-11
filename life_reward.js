@@ -1,6 +1,9 @@
 (() => {
   'use strict';
 
+  const hooks = window.INFINITY_GAME_HOOKS;
+  if (!hooks) throw new Error('INFINITY_GAME_HOOKS is not available');
+
   class LifeReward {
     constructor() {
       this.isLifeReward = true;
@@ -67,20 +70,21 @@
   }
 
   window.spawnLifeReward = () => {
-    if (typeof powerups === 'undefined' || powerups.some(p => p.isLifeReward)) return false;
+    if (typeof powerups === 'undefined' || powerups.some(powerup => powerup.isLifeReward)) return false;
     powerups.push(new LifeReward());
     return true;
   };
 
   const baseCollisions = collisions;
   collisions = function () {
-    const rewards = powerups.filter(p => p.isLifeReward);
-    powerups = powerups.filter(p => !p.isLifeReward);
+    const rewards = powerups.filter(powerup => powerup.isLifeReward);
+    powerups = powerups.filter(powerup => !powerup.isLifeReward);
 
     for (const reward of rewards) {
-      for (let j = bullets.length - 1; j >= 0; j--) {
-        if (!overlap(reward.b(), bullets[j].b())) continue;
-        bullets.splice(j, 1);
+      for (let index = bullets.length - 1; index >= 0; index--) {
+        if (!overlap(reward.b(), bullets[index].b())) continue;
+
+        bullets.splice(index, 1);
         reward.hp--;
         burst(reward.x, reward.y, '#39ff72', 3);
 
@@ -104,24 +108,20 @@
   let hunterRewardDropped = false;
 
   function updateRewardState() {
-    const state = window.INFINITE_TUTORIAL_STATE;
-    if (!state) return;
+    const tutorial = window.INFINITE_TUTORIAL_STATE;
+    if (!tutorial) return;
 
-    if (state.index === 0 && !state.activeType) {
+    if (tutorial.index === 0 && !tutorial.activeType) {
       hunterRewardArmed = false;
       hunterRewardDropped = false;
     }
 
-    if (state.activeType === 'hunter') hunterRewardArmed = true;
+    if (tutorial.activeType === 'hunter') hunterRewardArmed = true;
 
-    if (hunterRewardArmed && !hunterRewardDropped && state.index >= 4 && !state.activeType) {
+    if (hunterRewardArmed && !hunterRewardDropped && tutorial.index >= 4 && !tutorial.activeType) {
       hunterRewardDropped = !!window.spawnLifeReward();
     }
   }
 
-  const baseUpdate = window.update;
-  window.update = function () {
-    baseUpdate.call(this);
-    if (running && !paused) updateRewardState();
-  };
+  hooks.onUpdate(updateRewardState);
 })();

@@ -1,0 +1,199 @@
+/* Infinity online + liquid-glass presentation layer */
+:root {
+  --glass-bg: rgba(18, 20, 28, 0.46);
+  --glass-bg-strong: rgba(20, 23, 32, 0.68);
+  --glass-border: rgba(255, 255, 255, 0.22);
+  --glass-highlight: rgba(255, 255, 255, 0.12);
+  --glass-shadow: rgba(0, 0, 0, 0.48);
+  --glass-blue: #7bc7ff;
+}
+
+#settingsMenu,
+#pauseOverlay,
+#iosInstallHelp,
+#gameOverMenu,
+#scoreboardMenu,
+#authMenu {
+  background:
+    radial-gradient(circle at 20% 15%, rgba(100, 174, 255, 0.12), transparent 32%),
+    radial-gradient(circle at 80% 78%, rgba(174, 106, 255, 0.10), transparent 30%),
+    rgba(0, 0, 0, 0.60) !important;
+  backdrop-filter: blur(14px) saturate(125%);
+  -webkit-backdrop-filter: blur(14px) saturate(125%);
+}
+
+.menu-content,
+.pause-content {
+  background:
+    linear-gradient(145deg, rgba(255,255,255,.10), rgba(255,255,255,.025)),
+    var(--glass-bg) !important;
+  border: 1px solid var(--glass-border) !important;
+  border-radius: 24px !important;
+  box-shadow:
+    0 24px 70px var(--glass-shadow),
+    inset 0 1px 0 rgba(255,255,255,.16),
+    inset 0 -1px 0 rgba(255,255,255,.035) !important;
+  backdrop-filter: blur(26px) saturate(145%);
+  -webkit-backdrop-filter: blur(26px) saturate(145%);
+}
+
+.menu-content h2,
+.pause-content h2 {
+  letter-spacing: .08em;
+}
+
+.menu-content button,
+.pause-content button,
+#languageSelect,
+#authUsername,
+#authPassword,
+#playerName {
+  border: 1px solid rgba(255,255,255,.16) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.18), 0 8px 22px rgba(0,0,0,.18);
+}
+
+.menu-content button,
+.pause-content button {
+  border-radius: 14px !important;
+  transition: transform .12s ease, filter .12s ease, background .12s ease;
+}
+
+.menu-content button:hover,
+.pause-content button:hover {
+  filter: brightness(1.06);
+}
+
+.menu-back,
+#gyroToggleBtn,
+#logoutBtn {
+  background: rgba(255,255,255,.08) !important;
+  color: #fff !important;
+}
+
+#languageSelect,
+#authUsername,
+#authPassword,
+#playerName {
+  background: rgba(5, 7, 12, .54) !important;
+  color: #fff;
+  border-radius: 14px !important;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.account-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 15px;
+  background: rgba(255,255,255,.055);
+}
+
+#accountStatus {
+  color: rgba(255,255,255,.68);
+  font-size: 12px;
+  text-align: left;
+}
+
+#accountBtn {
+  width: auto !important;
+  min-height: 38px !important;
+  margin: 0 !important;
+  padding: 8px 12px !important;
+  font-size: 13px !important;
+}
+
+.version-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 5px 9px;
+  margin: 0 0 14px;
+  border: 1px solid rgba(123,199,255,.20);
+  border-radius: 999px;
+  color: var(--glass-blue);
+  background: rgba(123,199,255,.07);
+  font: 11px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  letter-spacing: .03em;
+}
+
+#authMenu {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 180;
+  pointer-events: auto;
+  padding: 18px;
+}
+
+.auth-fields {
+  display: grid;
+  gap: 10px;
+}
+
+#authUsername,
+#authPassword {
+  width: 100%;
+  min-height: 48px;
+  padding: 12px 14px;
+  text-align: center;
+}
+
+.auth-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.auth-actions button {
+  margin: 0 !important;
+}
+
+#authMessage {
+  min-height: 20px;
+  margin: 10px 0 !important;
+  color: rgba(255,255,255,.68) !important;
+  font-size: 12px;
+}
+
+#authMessage.error {
+  color: #ff8d8d !important;
+}
+
+#scoreList {
+  list-style: none;
+  padding-left: 0 !important;
+  max-height: min(50vh, 430px);
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.online-score-row {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  grid-template-areas:
+    "rank pilot points"
+    ". build build";
+  gap: 2px 8px;
+  align-items: center;
+  padding: 10px 2px !important;
+  border-bottom: 1px solid rgba(255,255,255,.09) !important;
+}
+
+.score-rank { grid-area: rank; color: rgba(255,255,255,.42); font-variant-numeric: tabular-nums; }
+.score-pilot { grid-area: pilot; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.score-points { grid-area: points; color: var(--glass-blue); font-weight: 700; font-variant-numeric: tabular-nums; }
+.score-build { grid-area: build; color: rgba(255,255,255,.38); font: 10px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+
+@media (max-width: 420px) {
+  .menu-content,
+  .pause-content { border-radius: 21px !important; }
+  .account-strip { align-items: stretch; flex-direction: column; }
+  #accountBtn { width: 100% !important; }
+}

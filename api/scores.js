@@ -14,12 +14,7 @@ export default async function handler(req, res) {
         FROM scores s
         JOIN users u ON u.id = s.user_id
         ORDER BY s.score DESC, s.survival_time DESC, s.created_at ASC`;
-      return json(
-        res,
-        200,
-        { scores: rows, gameVersion: GAME_VERSION },
-        { cacheControl: 'public, max-age=0, s-maxage=15, stale-while-revalidate=30' }
-      );
+      return json(res, 200, { scores: rows, gameVersion: GAME_VERSION });
     }
 
     if (req.method === 'POST') {

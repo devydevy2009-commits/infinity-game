@@ -2,6 +2,9 @@
 (() => {
   'use strict';
 
+  const hooks = window.INFINITY_GAME_HOOKS;
+  if (!hooks) throw new Error('INFINITY_GAME_HOOKS is not available');
+
   // Keep directed enemy volleys to one projectile. Tactical firing cadence is
   // owned by tactical_balance.js, so this layer does not wrap Hunter.update again.
   const baseDirectedBurst = fireDirectedBurst;
@@ -11,8 +14,10 @@
 
   // Ghost tutorial: widen the existing line and increase its stagger once per pattern.
   let tunedPattern = null;
+
   function tuneGhostPattern() {
-    if (!window.INFINITE_TUTORIAL_STATE || window.INFINITE_TUTORIAL_STATE.activeType !== 'ghost') {
+    const tutorial = window.INFINITE_TUTORIAL_STATE;
+    if (!tutorial || tutorial.activeType !== 'ghost') {
       tunedPattern = null;
       return;
     }
@@ -21,16 +26,14 @@
     if (!members.length || members[0].tutorialPattern === tunedPattern) return;
 
     tunedPattern = members[0].tutorialPattern;
-    const gapX = S(54), gapY = S(36);
+    const gapX = S(54);
+    const gapY = S(36);
+
     members.forEach((enemy, index) => {
       enemy.tutorialOffset.x = index * gapX;
       enemy.tutorialOffset.y = index % 2 === 0 ? -gapY : gapY;
     });
   }
 
-  const baseUpdate = window.update;
-  window.update = function () {
-    baseUpdate.call(this);
-    if (running && !paused) tuneGhostPattern();
-  };
+  hooks.onUpdate(tuneGhostPattern);
 })();

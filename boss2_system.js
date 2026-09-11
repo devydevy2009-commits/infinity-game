@@ -137,7 +137,7 @@
     ctx.strokeStyle = color; ctx.lineWidth = S(2.8); ctx.lineJoin = 'miter';
     ctx.shadowColor = color; ctx.shadowBlur = S(9);
 
-    // Angular stealth-fighter silhouette inspired by the broad planform of modern twin-tail fighters.
+    // Angular stealth-fighter silhouette: swept wings, clipped nose and twin canted tails.
     ctx.beginPath();
     ctx.moveTo(0, -s * 1.28);
     ctx.lineTo(s * .23, -.63 * s);
@@ -162,12 +162,14 @@
     ctx.closePath();
     ctx.stroke();
 
+    // Fuselage spine and faceted wing roots.
     ctx.beginPath();
     ctx.moveTo(0, -s * 1.12); ctx.lineTo(0, s * .92);
     ctx.moveTo(-s * .60, -.22 * s); ctx.lineTo(0, .18 * s); ctx.lineTo(s * .60, -.22 * s);
     ctx.moveTo(-s * .37, .43 * s); ctx.lineTo(0, .26 * s); ctx.lineTo(s * .37, .43 * s);
     ctx.stroke();
 
+    // Twin canted vertical tails and twin engine channels.
     ctx.beginPath();
     ctx.moveTo(-s * .25, .64 * s); ctx.lineTo(-s * .52, .97 * s); ctx.lineTo(-s * .34, .94 * s);
     ctx.moveTo(s * .25, .64 * s); ctx.lineTo(s * .52, .97 * s); ctx.lineTo(s * .34, .94 * s);
@@ -183,6 +185,7 @@
     }
     ctx.restore();
 
+    // Boss HP bar.
     const barW = Math.min(width * .74, S(310));
     const barH = S(9); const x = (width - barW) / 2; const y = S(44);
     ctx.save(); ctx.textAlign = 'center'; ctx.font = `bold ${Math.max(11, S(12))}px sans-serif`;
@@ -199,6 +202,7 @@
   }
 
   function dropRewards(x, y) {
+    // Both rewards use the game's established pickup system: shoot them to collect.
     if (typeof spawnLifeReward === 'function') spawnLifeReward();
     const reward = new Powerup();
     reward.x = clamp(x + S(30), S(28), width - S(28));
@@ -255,6 +259,7 @@
       active.y += S(.72) * f;
       if (active.y >= height * .20) active.phase = 'combat';
     } else {
+      // Smooth hunter-like pursuit with a lateral bias, never an instant snap.
       const targetX = player.x + Math.sin(now / 1100) * S(85);
       const dx = targetX - active.x;
       active.vx += clamp(dx * .00095, -S(.06), S(.06)) * f;
@@ -291,11 +296,24 @@
       burst(cx, height * .20, '#ff42d0', 35);
     }
 
-    previousUpdate.call(this);
+    if (!active) {
+      previousUpdate.call(this);
+      return;
+    }
 
-    if (!active) return;
+    // Run only the safe core loop while the second boss is active.
+    // This avoids regular enemy spawning/collision from leaking into the boss fight.
+    const f = now < slowUntil ? .32 : 1;
+    player.update(targetX, targetY);
+    shoot(now);
+    stars.forEach(s => s.update(f));
+    bullets.forEach(b => b.update(f));
+    particles.forEach(p => p.update(f));
+    bullets = bullets.filter(b => b.life > 0 && b.x > -S(120) && b.x < width + S(120) && b.y > -S(120) && b.y < height + S(120));
+    particles = particles.filter(p => p.life > 0);
     enemies.length = 0;
     enemyBullets.length = 0;
+    powerups.length = 0;
     updateBoss(now);
   };
 

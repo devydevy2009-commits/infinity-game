@@ -11,17 +11,17 @@
 
   const SHOT_MIN = 280, SHOT_MAX = 620;
   const PHASE2_SHOT_MIN = 560, PHASE2_SHOT_MAX = 920;
-  // Angle between simultaneous shots. Widened so shots open dodgeable gaps between
-  // each other much faster, instead of staying bunched together as they travel.
-  const SHOT_SPREAD = 0.22;
-  const PHASE2_SHOT_SPREAD = 0.34;
+  // Angle between simultaneous shots. Widened further (second pass) so shots open
+  // dodgeable gaps between each other even faster than the first tuning attempt.
+  const SHOT_SPREAD = 0.32;
+  const PHASE2_SHOT_SPREAD = 0.46;
   const MISSILE_MIN = 1900, MISSILE_MAX = 3100;
   const PHASE2_MISSILE_MIN = 1500, PHASE2_MISSILE_MAX = 2450;
   const BURST_MIN = 5600, BURST_MAX = 7600;
   // Fewer, wider-spaced projectiles around the ring so there is always a real gap
-  // to fly through (see BossRing.hitsPlayer, which now only blocks near a dot
-  // instead of the whole 360° band).
-  const BURST_COUNT = 10;
+  // to fly through (see BossRing.hitsPlayer, which only blocks near a dot instead
+  // of the whole 360° band). Reduced further in this pass for bigger gaps.
+  const BURST_COUNT = 8;
   const BURST_GROWTH = 2.35;
   const BULLET_SPEED = 5.6, MISSILE_SPEED = 3.75, MISSILE_TURN = 0.034, MISSILE_MAX_SPEED = 4.65;
   const MAX_PROJECTILES = 42, MISSILE_HP = 3, BASE_MAX_MISSILES = 5, PHASE2_MAX_MISSILES = 8;
@@ -165,12 +165,14 @@
     // which made the whole 360° band solid with no way through — a full wall of
     // damage regardless of angle. It now also checks angular proximity to one of
     // the visible dots, so the true gaps between them are safely passable, matching
-    // what the player sees on screen.
+    // what the player sees on screen. Second tuning pass: the hit half-width per dot
+    // is now noticeably smaller than the drawn dot, so the visible gaps are even
+    // more generous than what you see, giving a safety margin while dodging.
     hitsPlayer(pb) {
       const d = Math.hypot(pb.x - this.x, pb.y - this.y);
       if (Math.abs(d - this.radius) > pb.r + this.r + S(2)) return false;
       const angleToPlayer = Math.atan2(pb.y - this.y, pb.x - this.x);
-      const angularHalfWidth = Math.atan2(this.r + pb.r * 0.5, Math.max(this.radius, 1));
+      const angularHalfWidth = Math.atan2(this.r * 0.8 + pb.r * 0.35, Math.max(this.radius, 1));
       for (let i = 0; i < this.count; i++) {
         const dotAngle = i / this.count * Math.PI * 2 + this.phase * .035;
         const diff = Math.atan2(Math.sin(angleToPlayer - dotAngle), Math.cos(angleToPlayer - dotAngle));

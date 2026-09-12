@@ -212,6 +212,23 @@
         continue;
       }
 
+      for (let j = hunter.missiles.length - 1; j >= 0; j--) {
+        const missile = hunter.missiles[j];
+        for (let k = bullets.length - 1; k >= 0; k--) {
+          if (!overlap(missile.b(), bullets[k].b())) continue;
+          bullets.splice(k, 1);
+          hunter.missiles.splice(j, 1);
+          burst(missile.x, missile.y, '#ffd35a', 7);
+          break;
+        }
+        if (!hunter.missiles[j]) continue;
+        if (overlap(player.b(), missile.b())) {
+          hunter.missiles.splice(j, 1);
+          burst(missile.x, missile.y, '#ffd35a', 10);
+          damage();
+        }
+      }
+
       if (overlap(player.b(), hunter.b())) {
         hunter.dead = true;
         cureHunters.splice(i, 1);

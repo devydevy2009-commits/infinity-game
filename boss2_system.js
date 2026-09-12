@@ -1,5 +1,5 @@
 // INFINITY — evolved hunter boss, unlocked 60s after the Drone Carriers.
-// Kept isolated from the first boss so the original encounter remains stable.
+// Preview branch also supports a dedicated solo test fight.
 (() => {
   'use strict';
 
@@ -15,6 +15,10 @@
   const MISSILE_SPEED = 2.65;
   const MISSILE_TURN = 0.026;
   const MAX_PROJECTILES = 42;
+
+  // Only the preview branch exposes this mode; production keeps the normal unlock flow.
+  const SOLO_PREVIEW = location.hostname.includes('git-preview-boss-hunter-v2');
+  const SOLO_POWER = 9;
 
   let active = null;
   let dueAtSec = null;
@@ -94,7 +98,7 @@
       hp: HP,
       maxHp: HP,
       phase: 'entry',
-      angle: 0,
+      angle: Math.PI,
       nextShotAt: now + 850,
       nextMissileAt: now + 2500,
       shots: [],
@@ -137,7 +141,7 @@
     ctx.strokeStyle = color; ctx.lineWidth = S(2.8); ctx.lineJoin = 'miter';
     ctx.shadowColor = color; ctx.shadowBlur = S(9);
 
-    // Angular stealth-fighter silhouette: swept wings, clipped nose and twin canted tails.
+    // Angular stealth-fighter silhouette. Local -Y is the nose.
     ctx.beginPath();
     ctx.moveTo(0, -s * 1.28);
     ctx.lineTo(s * .23, -.63 * s);
@@ -162,14 +166,12 @@
     ctx.closePath();
     ctx.stroke();
 
-    // Fuselage spine and faceted wing roots.
     ctx.beginPath();
     ctx.moveTo(0, -s * 1.12); ctx.lineTo(0, s * .92);
     ctx.moveTo(-s * .60, -.22 * s); ctx.lineTo(0, .18 * s); ctx.lineTo(s * .60, -.22 * s);
     ctx.moveTo(-s * .37, .43 * s); ctx.lineTo(0, .26 * s); ctx.lineTo(s * .37, .43 * s);
     ctx.stroke();
 
-    // Twin canted vertical tails and twin engine channels.
     ctx.beginPath();
     ctx.moveTo(-s * .25, .64 * s); ctx.lineTo(-s * .52, .97 * s); ctx.lineTo(-s * .34, .94 * s);
     ctx.moveTo(s * .25, .64 * s); ctx.lineTo(s * .52, .97 * s); ctx.lineTo(s * .34, .94 * s);
@@ -185,7 +187,6 @@
     }
     ctx.restore();
 
-    // Boss HP bar.
     const barW = Math.min(width * .74, S(310));
     const barH = S(9); const x = (width - barW) / 2; const y = S(44);
     ctx.save(); ctx.textAlign = 'center'; ctx.font = `bold ${Math.max(11, S(12))}px sans-serif`;
@@ -202,7 +203,6 @@
   }
 
   function dropRewards(x, y) {
-    // Both rewards use the game's established pickup system: shoot them to collect.
     if (typeof spawnLifeReward === 'function') spawnLifeReward();
     const reward = new Powerup();
     reward.x = clamp(x + S(30), S(28), width - S(28));
@@ -259,16 +259,25 @@
       active.y += S(.72) * f;
       if (active.y >= height * .20) active.phase = 'combat';
     } else {
-      // Smooth hunter-like pursuit with a lateral bias, never an instant snap.
-      const targetX = player.x + Math.sin(now / 1100) * S(85);
-      const dx = targetX - active.x;
-      active.vx += clamp(dx * .00095, -S(.06), S(.06)) * f;
-      active.vx *= Math.pow(.985, f);
-      active.vx = clamp(active.vx, -S(3.0), S(3.0));
+      // Harder than the normal hunter: track the player's position in both axes.
+      // The nose follows the player with a bounded angular turn, so it cannot snap.
+      const dx = player.x - active.x;
+      const dy = player.y - active.y;
+      const desiredAngle = Math.atan2(dy, dx) + Math.PI / 2;
+      let angleDelta = Math.atan2(Math.sin(desiredAngle - active.angle), Math.cos(desiredAngle - active.angle));
+      angleDelta = clamp(angleDelta, -S(.105) * f, S(.105) * f);
+      active.angle += angleDelta;
+
+      const desiredX = player.x + Math.sin(now / 780) * S(42);
+      const desiredY = height * .20 + clamp((player.y - height * .55) * .22, -S(70), S(180));
+      const steerX = clamp((desiredX - active.x) * .00135, -S(.09), S(.09));
+      const steerY = clamp((desiredY - active.y) * .0009, -S(.055), S(.055));
+      active.vx = clamp((active.vx + steerX * f) * Math.pow(.982, f), -S(4.1), S(4.1));
+      active.vy = clamp((active.vy + steerY * f) * Math.pow(.986, f), -S(2.2), S(2.2));
       active.x += active.vx * f;
+      active.y += active.vy * f;
       active.x = clamp(active.x, S(58), width - S(58));
-      active.y = height * .20 + Math.sin(now / 1200) * S(20);
-      active.angle = clamp(active.vx / S(7), -.28, .28);
+      active.y = clamp(active.y, S(82), height * .54);
     }
 
     if (now >= active.nextShotAt) fireDoubleShot();
@@ -281,16 +290,31 @@
     processBossCollisions();
   }
 
+  function startSoloBoss() {
+    if (!SOLO_PREVIEW || active || completedThisRun || !running) return;
+    power = SOLO_POWER;
+    if (powerEl) setHud(powerEl, 'power', 'Power', power);
+    score = 0;
+    if (scoreEl) setHud(scoreEl, 'score', 'Score', score);
+    enemies.length = 0;
+    enemyBullets.length = 0;
+    powerups.length = 0;
+    active = createBoss();
+    burst(cx, height * .18, '#ff42d0', 35);
+  }
+
   window.update = function () {
     const firstBoss = window.INFINITE_BOSS_STATE;
     const now = Date.now();
     const elapsed = secs();
 
-    if (!completedThisRun && dueAtSec === null && firstBoss?.completed) {
+    if (SOLO_PREVIEW && !completedThisRun && running && !active) startSoloBoss();
+
+    if (!SOLO_PREVIEW && !completedThisRun && dueAtSec === null && firstBoss?.completed) {
       dueAtSec = elapsed + DELAY_AFTER_FIRST_BOSS_SEC;
     }
 
-    if (!active && !completedThisRun && dueAtSec !== null && elapsed >= dueAtSec && running) {
+    if (!SOLO_PREVIEW && !active && !completedThisRun && dueAtSec !== null && elapsed >= dueAtSec && running) {
       active = createBoss();
       enemies.length = 0; enemyBullets.length = 0; powerups.length = 0;
       burst(cx, height * .20, '#ff42d0', 35);
@@ -301,8 +325,6 @@
       return;
     }
 
-    // Run only the safe core loop while the second boss is active.
-    // This avoids regular enemy spawning/collision from leaking into the boss fight.
     const f = now < slowUntil ? .32 : 1;
     player.update(targetX, targetY);
     shoot(now);
@@ -330,12 +352,17 @@
     dueAtSec = null;
     completedThisRun = false;
     previousReset.call(this);
+    if (SOLO_PREVIEW) {
+      power = SOLO_POWER;
+      if (powerEl) setHud(powerEl, 'power', 'Power', power);
+    }
   };
 
   window.INFINITE_SECOND_BOSS_STATE = Object.freeze({
     get active() { return !!active; },
     get completed() { return completedThisRun; },
     get dueAt() { return dueAtSec; },
-    get name() { return active ? BOSS_NAME : null; }
+    get name() { return active ? BOSS_NAME : null; },
+    get soloPreview() { return SOLO_PREVIEW; }
   });
 })();

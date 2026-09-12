@@ -1,18 +1,18 @@
 // INFINITY — Cure Hunter.
-// Rare green hunter: unlocked only after Boss 2, one spawn every 120 gameplay seconds.
-// Tougher than the normal Hunter and rewards +1 life when destroyed.
+// Green hunter unlocked after Boss 2. More frequent, tougher and more aggressive.
 (() => {
   'use strict';
 
   const hooks = window.INFINITY_GAME_HOOKS;
   if (!hooks) throw new Error('INFINITY_GAME_HOOKS is not available');
 
-  const SPAWN_INTERVAL_SEC = 120;
-  const FIRE_INTERVAL_MS = 560;
-  const HOMING_SPEED = 3.6;
-  const HOMING_TURN = 0.036;
-  const HOMING_LIFE = 340;
-  const HP_MULTIPLIER = 3;
+  const SPAWN_INTERVAL_SEC = 90;
+  const MAX_ACTIVE = 2;
+  const FIRE_INTERVAL_MS = 320;
+  const HOMING_SPEED = 4.7;
+  const HOMING_TURN = 0.062;
+  const HOMING_LIFE = 420;
+  const HP_MULTIPLIER = 5;
 
   const cureHunters = [];
   let unlocked = false;
@@ -27,7 +27,6 @@
       this.vy = Math.sin(angle) * S(HOMING_SPEED);
       this.r = S(6.5);
       this.life = HOMING_LIFE;
-      this.phase = Math.random() * Math.PI * 2;
     }
 
     update(f) {
@@ -43,7 +42,6 @@
       this.x += this.vx * f;
       this.y += this.vy * f;
       this.life -= f;
-      this.phase += .13 * f;
     }
 
     draw() {
@@ -51,15 +49,15 @@
       ctx.save();
       ctx.strokeStyle = '#ffd35a';
       ctx.shadowColor = '#ff9f1a';
-      ctx.shadowBlur = S(11);
-      ctx.lineWidth = S(2.3);
+      ctx.shadowBlur = S(13);
+      ctx.lineWidth = S(2.6);
       ctx.lineCap = 'round';
       ctx.beginPath();
-      ctx.moveTo(this.x - this.vx / len * S(15), this.y - this.vy / len * S(15));
+      ctx.moveTo(this.x - this.vx / len * S(17), this.y - this.vy / len * S(17));
       ctx.lineTo(this.x, this.y);
       ctx.stroke();
       ctx.fillStyle = '#fff';
-      ctx.beginPath(); ctx.arc(this.x, this.y, S(2.3), 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(this.x, this.y, S(2.5), 0, Math.PI * 2); ctx.fill();
       ctx.restore();
     }
 
@@ -83,12 +81,14 @@
       const normalHunterHp = 2 + Math.floor(tier() / 6);
       this.hp = normalHunterHp * HP_MULTIPLIER;
       this.maxHp = this.hp;
-      this.size = S(19);
-      this.vx = 0;
-      this.vy = S(1.8 + tier() * .045);
+      this.size = S(20);
+      const angle = player ? Math.atan2(player.y - this.y, player.x - this.x) : Math.PI / 2;
+      const speed = S(2.8 + tier() * .11);
+      this.vx = Math.cos(angle) * speed;
+      this.vy = Math.sin(angle) * speed;
       this.orbit = Math.random() * Math.PI * 2;
-      this.rot = 0;
-      this.lastShot = Date.now() + 700;
+      this.rot = angle + Math.PI / 2;
+      this.lastShot = Date.now() + 350;
       this.hitUntil = 0;
       this.missiles = [];
       this.dead = false;
@@ -99,15 +99,15 @@
       const dx = player.x - this.x;
       const dy = player.y - this.y;
       const dist = Math.hypot(dx, dy) || 1;
-      const steer = S(.062 + tier() * .003) * f;
+      const steer = S(.105 + tier() * .004) * f;
       this.vx += dx / dist * steer;
       this.vy += dy / dist * steer;
-      this.orbit += .018 * f;
-      this.vx += Math.cos(this.orbit) * S(.014) * f;
-      this.vy += Math.sin(this.orbit) * S(.014) * f;
+      this.orbit += .028 * f;
+      this.vx += Math.cos(this.orbit) * S(.018) * f;
+      this.vy += Math.sin(this.orbit) * S(.018) * f;
 
       const speed = Math.hypot(this.vx, this.vy);
-      const maxSpeed = S(3.1 + tier() * .12);
+      const maxSpeed = S(4.0 + tier() * .15);
       if (speed > maxSpeed) {
         this.vx = this.vx / speed * maxSpeed;
         this.vy = this.vy / speed * maxSpeed;
@@ -120,13 +120,14 @@
       const now = Date.now();
       if (now - this.lastShot >= FIRE_INTERVAL_MS) {
         this.missiles.push(new CureMissile(this.x, this.y));
+        if (tier() >= 5) this.missiles.push(new CureMissile(this.x, this.y));
         this.lastShot = now;
       }
 
       for (const missile of this.missiles) missile.update(f);
-      this.missiles = this.missiles.filter(m => m.life > 0 && m.x > -S(110) && m.x < width + S(110) && m.y > -S(130) && m.y < height + S(150));
+      this.missiles = this.missiles.filter(m => m.life > 0 && m.x > -S(120) && m.x < width + S(120) && m.y > -S(140) && m.y < height + S(160));
 
-      if (this.x < -S(160) || this.x > width + S(160) || this.y < -S(160) || this.y > height + S(180)) {
+      if (this.x < -S(180) || this.x > width + S(180) || this.y < -S(180) || this.y > height + S(200)) {
         this.dead = true;
       }
     }
@@ -140,23 +141,23 @@
       ctx.rotate(this.rot);
       ctx.strokeStyle = color;
       ctx.shadowColor = '#39ff72';
-      ctx.shadowBlur = S(12);
-      ctx.lineWidth = S(2.8);
+      ctx.shadowBlur = S(14);
+      ctx.lineWidth = S(3);
       ctx.beginPath();
-      ctx.moveTo(0, -s * 1.25);
-      ctx.lineTo(s * 1.05, s * .72);
-      ctx.lineTo(0, s * .38);
-      ctx.lineTo(-s * 1.05, s * .72);
+      ctx.moveTo(0, -s * 1.28);
+      ctx.lineTo(s * 1.1, s * .74);
+      ctx.lineTo(0, s * .40);
+      ctx.lineTo(-s * 1.1, s * .74);
       ctx.closePath();
       ctx.stroke();
       ctx.beginPath();
-      ctx.moveTo(-s * .52, s * .16); ctx.lineTo(s * .52, s * .16);
-      ctx.moveTo(0, -s * .45); ctx.lineTo(0, s * .45);
+      ctx.moveTo(-s * .55, s * .16); ctx.lineTo(s * .55, s * .16);
+      ctx.moveTo(0, -s * .48); ctx.lineTo(0, s * .48);
       ctx.stroke();
       ctx.restore();
 
-      const barW = s * 2.3;
-      const barY = this.y + s * 1.42;
+      const barW = s * 2.45;
+      const barY = this.y + s * 1.46;
       ctx.fillStyle = 'rgba(255,255,255,.18)';
       ctx.fillRect(this.x - barW / 2, barY, barW, S(3));
       ctx.fillStyle = '#39ff72';
@@ -168,8 +169,7 @@
 
   function spawnCureHunter() {
     if (!unlocked || nextSpawnAt === null || secs() < nextSpawnAt || !running || paused) return;
-    // Exactly one Cure Hunter may exist at a time.
-    if (cureHunters.length > 0) return;
+    if (cureHunters.length >= MAX_ACTIVE) return;
     cureHunters.push(new CureHunter());
     nextSpawnAt += SPAWN_INTERVAL_SEC;
   }
@@ -177,9 +177,9 @@
   function awardLife(hunter) {
     lives += 1;
     setHud(livesEl, 'lives', 'Lives', lives);
-    score += 750;
+    score += 1000;
     setHud(scoreEl, 'score', 'Score', score);
-    burst(hunter.x, hunter.y, '#39ff72', 40);
+    burst(hunter.x, hunter.y, '#39ff72', 46);
   }
 
   function handleHunterCollisions() {
@@ -223,7 +223,7 @@
       if (overlap(player.b(), hunter.b())) {
         hunter.dead = true;
         cureHunters.splice(i, 1);
-        burst(hunter.x, hunter.y, '#39ff72', 20);
+        burst(hunter.x, hunter.y, '#39ff72', 24);
         damage();
       }
     }
@@ -231,12 +231,13 @@
 
   function updateCureHunters() {
     const boss2 = window.INFINITE_SECOND_BOSS_STATE;
+    const boss1 = window.INFINITE_BOSS_STATE;
     if (!unlocked && boss2?.completed) {
       unlocked = true;
       nextSpawnAt = secs() + SPAWN_INTERVAL_SEC;
     }
 
-    if (!unlocked || boss2?.active) return;
+    if (!unlocked || boss1?.active || boss2?.active) return;
     spawnCureHunter();
 
     const f = Date.now() < slowUntil ? .32 : 1;

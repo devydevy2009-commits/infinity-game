@@ -8,7 +8,7 @@
   const BURST_MIN=5600, BURST_MAX=7600, BURST_COUNT=14, BURST_GROWTH=2.35;
   const BULLET_SPEED=5.6, MISSILE_SPEED=3.75, MISSILE_TURN=.034, MISSILE_MAX_SPEED=4.65;
   const MAX_PROJECTILES=42, MISSILE_HP=3, BASE_MAX_MISSILES=5, PHASE2_MAX_MISSILES=8, PHASE2_THRESHOLD=.5;
-  const SOLO_PREVIEW=location.hostname.includes('git-preview-boss-hunter-v2'), SOLO_POWER=9;
+  const SOLO_PREVIEW=(location.hostname.includes('git-preview-boss-hunter-v2')||location.hostname==='infinity-game-fztuz0e8c-davideacme.vercel.app'), SOLO_POWER=9;
   let active=null, dueAtSec=null, completedThisRun=false;
   const previousUpdate=window.update, previousDraw=window.draw, previousReset=window.resetGame;
   function randomBetween(a,b){return a+Math.random()*(b-a);}

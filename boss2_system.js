@@ -11,9 +11,18 @@
 
   const SHOT_MIN = 280, SHOT_MAX = 620;
   const PHASE2_SHOT_MIN = 560, PHASE2_SHOT_MAX = 920;
+  // Angle between simultaneous shots. Widened so shots open dodgeable gaps between
+  // each other much faster, instead of staying bunched together as they travel.
+  const SHOT_SPREAD = 0.22;
+  const PHASE2_SHOT_SPREAD = 0.34;
   const MISSILE_MIN = 1900, MISSILE_MAX = 3100;
   const PHASE2_MISSILE_MIN = 1500, PHASE2_MISSILE_MAX = 2450;
-  const BURST_MIN = 5600, BURST_MAX = 7600, BURST_COUNT = 14, BURST_GROWTH = 2.35;
+  const BURST_MIN = 5600, BURST_MAX = 7600;
+  // Fewer, wider-spaced projectiles around the ring so there is always a real gap
+  // to fly through (see BossRing.hitsPlayer, which now only blocks near a dot
+  // instead of the whole 360° band).
+  const BURST_COUNT = 10;
+  const BURST_GROWTH = 2.35;
   const BULLET_SPEED = 5.6, MISSILE_SPEED = 3.75, MISSILE_TURN = 0.034, MISSILE_MAX_SPEED = 4.65;
   const MAX_PROJECTILES = 42, MISSILE_HP = 3, BASE_MAX_MISSILES = 5, PHASE2_MAX_MISSILES = 8;
   const PHASE2_THRESHOLD = 0.5;
@@ -140,7 +149,11 @@
       ctx.save();
       ctx.strokeStyle = '#ff8b3d'; ctx.shadowColor = '#ff6a00'; ctx.shadowBlur = S(10); ctx.lineWidth = S(1.5);
       ctx.globalAlpha = Math.min(1, this.life / 25);
+      // Only faint reference circle now — the real boundary is the dots themselves,
+      // since the gaps between them are where the player is meant to fly through.
+      ctx.globalAlpha *= .35;
       ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2); ctx.stroke();
+      ctx.globalAlpha = Math.min(1, this.life / 25);
       for (let i = 0; i < this.count; i++) {
         const a = i / this.count * Math.PI * 2 + this.phase * .035;
         const x = this.x + Math.cos(a) * this.radius, y = this.y + Math.sin(a) * this.radius;
@@ -148,9 +161,22 @@
       }
       ctx.restore();
     }
+    // BUGFIX: this used to compare only the *radial* distance from the ring center,
+    // which made the whole 360° band solid with no way through — a full wall of
+    // damage regardless of angle. It now also checks angular proximity to one of
+    // the visible dots, so the true gaps between them are safely passable, matching
+    // what the player sees on screen.
     hitsPlayer(pb) {
       const d = Math.hypot(pb.x - this.x, pb.y - this.y);
-      return Math.abs(d - this.radius) <= pb.r + this.r + S(2);
+      if (Math.abs(d - this.radius) > pb.r + this.r + S(2)) return false;
+      const angleToPlayer = Math.atan2(pb.y - this.y, pb.x - this.x);
+      const angularHalfWidth = Math.atan2(this.r + pb.r * 0.5, Math.max(this.radius, 1));
+      for (let i = 0; i < this.count; i++) {
+        const dotAngle = i / this.count * Math.PI * 2 + this.phase * .035;
+        const diff = Math.atan2(Math.sin(angleToPlayer - dotAngle), Math.cos(angleToPlayer - dotAngle));
+        if (Math.abs(diff) <= angularHalfWidth) return true;
+      }
+      return false;
     }
   }
 
@@ -181,7 +207,7 @@
     if (!active || !player || active.shots.length >= MAX_PROJECTILES) return;
     const angle = Math.atan2(player.y - active.y, player.x - active.x);
     const phase2 = active.phase2;
-    const spread = phase2 ? .19 : .115;
+    const spread = phase2 ? PHASE2_SHOT_SPREAD : SHOT_SPREAD;
     const offsets = phase2 ? [-spread, 0, spread] : [-spread, spread];
     for (const offset of offsets) {
       if (active.shots.length >= MAX_PROJECTILES) break;

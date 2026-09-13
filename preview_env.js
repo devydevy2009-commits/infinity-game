@@ -1,13 +1,7 @@
 // INFINITY — single source of truth for "is this a preview build?".
-// Production hostnames are listed explicitly; anything else is treated as preview
-// (Vercel preview/branch deployments, or local development).
-//
-// BUGFIX CONTEXT: previously, preview detection lived inline in boss2_system.js and
-// checked for one specific deployment hostname that had been hardcoded by hand. That
-// broke on every new preview deployment, because Vercel generates a new random
-// hostname for each one. Centralizing the check here, based on the small, stable set
-// of production hostnames, fixes that for good and lets any future preview-only
-// feature reuse the same flag instead of re-inventing hostname parsing.
+// Production must never expose preview-only controls, including on Vercel's
+// random deployment URL. Preview controls are therefore enabled only on local
+// development or on an explicit Vercel Git branch alias (git-...), excluding main.
 (() => {
   'use strict';
 
@@ -20,9 +14,15 @@
 
   const host = location.hostname;
   const isLocalDev = host === 'localhost' || host === '127.0.0.1' || host === '';
-  const isVercelPreview = host.endsWith('.vercel.app') && !PRODUCTION_HOSTNAMES.includes(host);
+  const isProductionAlias = PRODUCTION_HOSTNAMES.includes(host);
 
-  // True on any Vercel preview/branch deployment and on local dev.
-  // False in production, and false for any unrecognized hostname (fail closed).
-  window.INFINITE_PREVIEW_BUILD = isVercelPreview || isLocalDev;
+  // Vercel Git preview aliases have the stable `git-<branch>-<owner>` shape.
+  // The production main alias is explicitly excluded above.
+  const isVercelGitPreview =
+    host.endsWith('.vercel.app') &&
+    host.startsWith('infinity-game-git-') &&
+    !isProductionAlias;
+
+  // Fail closed: random Vercel deployment URLs are NOT treated as preview.
+  window.INFINITE_PREVIEW_BUILD = isLocalDev || isVercelGitPreview;
 })();

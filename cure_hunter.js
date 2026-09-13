@@ -1,5 +1,5 @@
 // INFINITY — Cure Hunter.
-// Green hunter unlocked after Boss 2. More frequent, tougher and more aggressive.
+// Green hunter unlocked after Boss 2. Fast, aggressive and evasive.
 (() => {
   'use strict';
 
@@ -8,11 +8,15 @@
 
   const SPAWN_INTERVAL_SEC = 90;
   const MAX_ACTIVE = 2;
-  const FIRE_INTERVAL_MS = 320;
-  const HOMING_SPEED = 4.7;
-  const HOMING_TURN = 0.062;
-  const HOMING_LIFE = 420;
-  const HP_MULTIPLIER = 5;
+  const FIRE_INTERVAL_MS = 300;
+  const HOMING_SPEED = 4.9;
+  const HOMING_TURN = 0.068;
+  const HOMING_LIFE = 430;
+  const HP_MULTIPLIER = 8;
+  const EVADE_TRIGGER_HITS = 3;
+  const EVADE_DURATION_MS = 900;
+  const EVADE_COOLDOWN_MS = 1050;
+  const EVADE_SPEED = 5.8;
 
   const cureHunters = [];
   let unlocked = false;
@@ -83,13 +87,18 @@
       this.maxHp = this.hp;
       this.size = S(20);
       const angle = player ? Math.atan2(player.y - this.y, player.x - this.x) : Math.PI / 2;
-      const speed = S(2.8 + tier() * .11);
+      const speed = S(3.1 + tier() * .13);
       this.vx = Math.cos(angle) * speed;
       this.vy = Math.sin(angle) * speed;
       this.orbit = Math.random() * Math.PI * 2;
       this.rot = angle + Math.PI / 2;
-      this.lastShot = Date.now() + 350;
+      this.lastShot = Date.now() + 300;
       this.hitUntil = 0;
+      this.hitStreak = 0;
+      this.lastHitAt = 0;
+      this.evadingUntil = 0;
+      this.evasionCooldownUntil = 0;
+      this.evasionDir = Math.random() < .5 ? -1 : 1;
       this.missiles = [];
       this.dead = false;
     }
@@ -99,15 +108,27 @@
       const dx = player.x - this.x;
       const dy = player.y - this.y;
       const dist = Math.hypot(dx, dy) || 1;
-      const steer = S(.105 + tier() * .004) * f;
-      this.vx += dx / dist * steer;
-      this.vy += dy / dist * steer;
-      this.orbit += .028 * f;
-      this.vx += Math.cos(this.orbit) * S(.018) * f;
-      this.vy += Math.sin(this.orbit) * S(.018) * f;
+      const now = Date.now();
+      const inEvasion = now < this.evadingUntil;
+
+      // Boss-2-style evasive movement: stay aware of the player's position, then
+      // make a strong lateral dodge after taking a short burst of hits.
+      const baseSteer = S(.115 + tier() * .0045) * f;
+      this.vx += dx / dist * baseSteer;
+      this.vy += dy / dist * baseSteer;
+      this.orbit += .034 * f;
+      this.vx += Math.cos(this.orbit) * S(.024) * f;
+      this.vy += Math.sin(this.orbit) * S(.024) * f;
+
+      if (inEvasion) {
+        const perpX = -dy / dist;
+        const perpY = dx / dist;
+        this.vx += perpX * S(.22) * this.evasionDir * f;
+        this.vy += perpY * S(.22) * this.evasionDir * f;
+      }
 
       const speed = Math.hypot(this.vx, this.vy);
-      const maxSpeed = S(4.0 + tier() * .15);
+      const maxSpeed = S(inEvasion ? EVADE_SPEED + tier() * .15 : 4.35 + tier() * .16);
       if (speed > maxSpeed) {
         this.vx = this.vx / speed * maxSpeed;
         this.vy = this.vy / speed * maxSpeed;
@@ -117,10 +138,10 @@
       this.y += this.vy * f;
       this.rot = Math.atan2(this.vy, this.vx) + Math.PI / 2;
 
-      const now = Date.now();
       if (now - this.lastShot >= FIRE_INTERVAL_MS) {
         this.missiles.push(new CureMissile(this.x, this.y));
-        if (tier() >= 5) this.missiles.push(new CureMissile(this.x, this.y));
+        if (tier() >= 4) this.missiles.push(new CureMissile(this.x, this.y));
+        if (tier() >= 10) this.missiles.push(new CureMissile(this.x, this.y));
         this.lastShot = now;
       }
 
@@ -191,8 +212,20 @@
 
       for (let j = bullets.length - 1; j >= 0; j--) {
         if (!overlap(hunter.b(), bullets[j].b())) continue;
+        const now = Date.now();
         hunter.hp -= bullets[j].damage || 1;
-        hunter.hitUntil = Date.now() + 100;
+        hunter.hitUntil = now + 100;
+        hunter.hitStreak = now - hunter.lastHitAt < 380 ? hunter.hitStreak + 1 : 1;
+        hunter.lastHitAt = now;
+        if (hunter.hitStreak >= EVADE_TRIGGER_HITS && now >= hunter.evasionCooldownUntil) {
+          const dx = hunter.x - player.x;
+          const dy = hunter.y - player.y;
+          const perpX = -dy, perpY = dx;
+          hunter.evasionDir = (perpX * hunter.vx + perpY * hunter.vy) >= 0 ? -1 : 1;
+          hunter.evadingUntil = now + EVADE_DURATION_MS;
+          hunter.evasionCooldownUntil = now + EVADE_COOLDOWN_MS;
+          hunter.hitStreak = 0;
+        }
         bullets.splice(j, 1);
         if (hunter.hp <= 0) {
           awardLife(hunter);

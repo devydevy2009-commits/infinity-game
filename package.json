@@ -1,8 +1,8 @@
 {
   "name": "infinity-game",
   "private": true,
-  "version": "0.0.0",
-  "gameVersion": "0de6500-serverless.2",
+  "version": "1.0.12",
+  "gameVersion": "1.0.12",
   "type": "module",
   "dependencies": {
     "@neondatabase/serverless": "^1.0.1"
